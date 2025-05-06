@@ -25,16 +25,7 @@ public class GamePhaseManager : MonoBehaviour
 
     void Start()
 {
-    // Инициализируем куб перед использованием
-    if (cubeController != null)
-    {
-        // Принудительная инициализация куба
-        cubeController.Initialize(); 
-        
-        // Сразу ставим в режим планирования
-        cubeController.enabled = false;
-        cubeController.ResetToInitialState(true);
-    }
+    
     
     FindAllMovableObjects();
 }
@@ -86,7 +77,7 @@ public class GamePhaseManager : MonoBehaviour
     {
         // Сбрасываем в kinematic режим
         cubeController.enabled = false;
-        cubeController.ResetToInitialState(true); // Явно указываем kinematic
+        cubeController.ResetToInitialState(); // Явно указываем kinematic
         
         // Больше не нужно управлять Rigidbody здесь
     }
@@ -114,7 +105,7 @@ void StartExecutionPhase()
     if (cubeController != null)
     {
         // Сбрасываем в динамический режим
-        cubeController.ResetToInitialState(false); // Не kinematic
+        cubeController.ResetToInitialState(); // Не kinematic
         cubeController.enabled = true;
     }
     

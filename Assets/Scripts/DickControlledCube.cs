@@ -37,7 +37,6 @@ public class DickControlledCube : MonoBehaviour
     private Color originalTileColor;
     private Vector3 initialPosition;
     private Quaternion initialRotation;
-    private bool initialized = false;
     private Vector3 visualPointerLocalPosition;
     private Quaternion visualPointerLocalRotation;
 
@@ -45,56 +44,6 @@ public class DickControlledCube : MonoBehaviour
     public Vector3 CurrentDirection => currentDirection;
     public float CurrentSpeed => speed;
 
-    void Awake()
-{
-    InitializeTransformReferences(); // Новая отдельная инициализация
-    Initialize();
-}
-
-// Новая функция специально для трансформов
-private void InitializeTransformReferences()
-{
-    if (mainPointer == null)
-    {
-        mainPointer = transform.Find("MainPointer"); // Или создаем новый
-        if (mainPointer == null)
-        {
-            mainPointer = new GameObject("MainPointer").transform;
-            mainPointer.SetParent(transform);
-            mainPointer.localPosition = Vector3.zero;
-            mainPointer.rotation = transform.rotation;
-        }
-    }
-
-    if (visualPointer == null && mainPointer != null)
-    {
-        visualPointer = mainPointer.Find("VisualPointer");
-        if (visualPointer == null)
-        {
-            visualPointer = new GameObject("VisualPointer").transform;
-            visualPointer.SetParent(mainPointer);
-            visualPointer.localPosition = Vector3.forward; // Стандартное смещение
-            visualPointer.localRotation = Quaternion.identity;
-        }
-    }
-
-    // Фиксируем начальные значения
-    if (visualPointer != null && mainPointer != null)
-    {
-        visualPointerLocalPosition = visualPointer.localPosition;
-        visualPointerLocalRotation = visualPointer.localRotation;
-    }
-}
-
-public void Initialize()
-{
-    if (initialized) return;
-    
-    rb = GetComponent<Rigidbody>();
-    initialPosition = transform.position;
-    initialRotation = transform.rotation;
-    initialized = true;
-}
     void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -159,38 +108,25 @@ public void Initialize()
 }
 
     /// <summary> Сбрасывает куб в начальное состояние </summary>
-  public void ResetToInitialState(bool makeKinematic = true)
-{
-    if (!initialized) Initialize();
-    
-    // 1. Сброс основного объекта
-    transform.position = initialPosition;
-    transform.rotation = initialRotation;
-    
-    // 2. Физика
-    rb.isKinematic = makeKinematic;
-    if (!makeKinematic)
+    public void ResetToInitialState()
     {
+        transform.position = initialPosition;
+        transform.rotation = initialRotation;
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
-    }
-    
-    // 3. Сброс указателей
-    if (mainPointer != null)
-    {
-        mainPointer.rotation = transform.rotation;
+        currentDirection = mainPointer.forward;
+        isRotating = false;
+        isGrounded = true;
+        rb.freezeRotation = true;
+        rb.useGravity = false;
         
-        if (visualPointer != null)
+        // Сброс визуального указателя
+        if (visualPointer != null && mainPointer != null)
         {
-            visualPointer.localPosition = visualPointerLocalPosition;
-            visualPointer.localRotation = visualPointerLocalRotation;
+            visualPointer.position = mainPointer.TransformPoint(visualPointerLocalPosition);
+            visualPointer.rotation = mainPointer.rotation * visualPointerLocalRotation;
         }
     }
-    
-    currentDirection = mainPointer != null ? mainPointer.forward : transform.forward;
-    isRotating = false;
-    isGrounded = true;
-}
 
     void HandleMovement()
     {
