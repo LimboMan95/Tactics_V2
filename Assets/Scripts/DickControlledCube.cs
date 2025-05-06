@@ -27,6 +27,8 @@ public class DickControlledCube : MonoBehaviour
     [Header("References")]
     public Transform mainPointer;
     public Transform visualPointer;
+    [Header("Movement Control")]
+    public bool movementEnabled = true; // Новый флаг
 
     private Rigidbody rb;
     private Vector3 currentDirection;
@@ -104,6 +106,11 @@ public class DickControlledCube : MonoBehaviour
             mainPointer.rotation * visualPointerLocalRotation,
             Time.fixedDeltaTime * 20f
         );
+    }
+     if (!movementEnabled) 
+    {
+        rb.linearVelocity = Vector3.zero;
+        return;
     }
 }
 
