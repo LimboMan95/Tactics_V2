@@ -1,5 +1,4 @@
 using UnityEngine;
-using System.Collections.Generic;
 
 public class TransformSaver : MonoBehaviour
 {
@@ -13,70 +12,89 @@ public class TransformSaver : MonoBehaviour
         public Quaternion pointer1Rotation;
         public Vector3 pointer2Position;
         public Quaternion pointer2Rotation;
+        public Vector3 savedDirection;
+        public Vector3 movementDirection; // Добавляем сохранение направления
     }
 
-    [Header("References")]
+    [Header("Required References")]
     public DickControlledCube cubeController;
     public Transform mainPointer;
     public Transform visualPointer;
 
-    private TransformData initialTransforms = new TransformData();
+    [Header("Reset Settings")]
+    [Tooltip("Automatically disable movement when resetting")]
+    public bool disableMovementOnReset = true;
+
+    private TransformData savedTransforms = new TransformData();
 
     void Awake()
     {
-        // Сохраняем все трансформы при запуске сцены
-        SaveTransforms();
+        SaveCurrentTransforms();
     }
 
-    public void SaveTransforms()
+    [ContextMenu("Save Current Transforms")]
+    public void SaveCurrentTransforms()
+    {
+        if (!CheckReferences()) return;
+
+        savedTransforms.position = cubeController.transform.position;
+        savedTransforms.rotation = cubeController.transform.rotation;
+        savedTransforms.localScale = cubeController.transform.localScale;
+
+        savedTransforms.pointer1Position = mainPointer.localPosition;
+        savedTransforms.pointer1Rotation = mainPointer.localRotation;
+        
+        savedTransforms.pointer2Position = visualPointer.localPosition;
+        savedTransforms.pointer2Rotation = visualPointer.localRotation;
+
+        // Сохраняем текущее направление движения
+        savedTransforms.movementDirection = mainPointer.forward;
+    }
+
+    [ContextMenu("Reset Transforms")]
+    public void ResetTransforms()
+    {
+        if (!CheckReferences()) return;
+
+        // Временное отключение физики
+        bool wasKinematic = cubeController.GetComponent<Rigidbody>().isKinematic;
+        cubeController.GetComponent<Rigidbody>().isKinematic = true;
+
+        // Восстановление трансформов
+        cubeController.transform.position = savedTransforms.position;
+        cubeController.transform.rotation = savedTransforms.rotation;
+        cubeController.transform.localScale = savedTransforms.localScale;
+
+        // Восстановление указателей
+        mainPointer.localPosition = savedTransforms.pointer1Position;
+        mainPointer.localRotation = savedTransforms.pointer1Rotation;
+        visualPointer.localPosition = savedTransforms.pointer2Position;
+        visualPointer.localRotation = savedTransforms.pointer2Rotation;
+
+        // Принудительная синхронизация направления
+        cubeController.currentDirection = savedTransforms.movementDirection;
+        mainPointer.forward = savedTransforms.movementDirection;
+        visualPointer.forward = savedTransforms.movementDirection;
+
+        // Возвращаем исходное состояние физики
+        cubeController.GetComponent<Rigidbody>().isKinematic = wasKinematic;
+
+        if (disableMovementOnReset)
+        {
+            cubeController.movementEnabled = false;
+            cubeController.GetComponent<Rigidbody>().linearVelocity = Vector3.zero;
+        }
+
+        Debug.Log($"Direction after reset: {cubeController.currentDirection}");
+    }
+
+    private bool CheckReferences()
     {
         if (cubeController == null || mainPointer == null || visualPointer == null)
         {
-            Debug.LogError("Не все ссылки назначены в TransformSaver!");
-            return;
+            Debug.LogError("Missing references in TransformSaver!", this);
+            return false;
         }
-
-        // Сохраняем трансформы куба
-        initialTransforms.position = cubeController.transform.position;
-        initialTransforms.rotation = cubeController.transform.rotation;
-        initialTransforms.localScale = cubeController.transform.localScale;
-
-        // Сохраняем трансформы указателей
-        initialTransforms.pointer1Position = mainPointer.localPosition;
-        initialTransforms.pointer1Rotation = mainPointer.localRotation;
-        
-        initialTransforms.pointer2Position = visualPointer.localPosition;
-        initialTransforms.pointer2Rotation = visualPointer.localRotation;
-
-        Debug.Log("Все трансформы сохранены");
-    }
-
-    public void RestoreTransforms()
-    {
-        if (cubeController == null || mainPointer == null || visualPointer == null)
-        {
-            Debug.LogError("Не все ссылки назначены в TransformSaver!");
-            return;
-        }
-
-        // Восстанавливаем куб
-        cubeController.transform.position = initialTransforms.position;
-        cubeController.transform.rotation = initialTransforms.rotation;
-        cubeController.transform.localScale = initialTransforms.localScale;
-
-        // Восстанавливаем указатели
-        mainPointer.localPosition = initialTransforms.pointer1Position;
-        mainPointer.localRotation = initialTransforms.pointer1Rotation;
-        
-        visualPointer.localPosition = initialTransforms.pointer2Position;
-        visualPointer.localRotation = initialTransforms.pointer2Rotation;
-
-        Debug.Log("Все трансформы восстановлены");
-    }
-
-    // Для вызова из других скриптов
-    public TransformData GetSavedTransforms()
-    {
-        return initialTransforms;
+        return true;
     }
 }

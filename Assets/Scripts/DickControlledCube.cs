@@ -29,9 +29,10 @@ public class DickControlledCube : MonoBehaviour
     public Transform visualPointer;
     [Header("Movement Control")]
     public bool movementEnabled = true; // Новый флаг
+     public Vector3 currentDirection = Vector3.forward; // Явная инициализация
+
 
     private Rigidbody rb;
-    private Vector3 currentDirection;
     private bool isRotating = false;
     [SerializeField] private bool isGrounded = true;
     private Vector3 lastGridPosition;
@@ -46,8 +47,20 @@ public class DickControlledCube : MonoBehaviour
     public Vector3 CurrentDirection => currentDirection;
     public float CurrentSpeed => speed;
 
+    void Awake()
+{
+    if(mainPointer != null) 
+        currentDirection = mainPointer.forward;
+}
     void Start()
     {
+        
+         // Гарантированная инициализация направления
+        if(mainPointer != null && currentDirection == Vector3.zero)
+        {
+            currentDirection = mainPointer.forward;
+        }
+
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
         rb.useGravity = false;
@@ -113,6 +126,40 @@ public class DickControlledCube : MonoBehaviour
         return;
     }
 }
+
+    public void ToggleMovement()
+    {
+        movementEnabled = !movementEnabled;
+        Debug.Log($"Movement {(movementEnabled ? "ENABLED" : "DISABLED")}");
+    }
+    
+    public void DisableMovement()
+    {
+        movementEnabled = false;
+        
+        // Дополнительно останавливаем физику
+        if (TryGetComponent<Rigidbody>(out var rb))
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+        
+        Debug.Log("Movement FORCED to FALSE");
+    }
+
+    public void UpdateDirection(Vector3 newDirection)
+{
+    currentDirection = newDirection;
+    if(mainPointer != null) mainPointer.forward = newDirection;
+    if(visualPointer != null) visualPointer.forward = newDirection;
+}
+
+public void ForceUpdateDirection(Vector3 newDirection)
+    {
+        currentDirection = newDirection.normalized;
+        if(mainPointer != null) mainPointer.forward = currentDirection;
+        if(visualPointer != null) visualPointer.forward = currentDirection;
+    }
 
     /// <summary> Сбрасывает куб в начальное состояние </summary>
     public void ResetToInitialState()
