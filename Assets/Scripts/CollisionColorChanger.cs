@@ -31,6 +31,17 @@ public class CollisionColorChanger : MonoBehaviour
             StartCollisionEffect();
         }
     }
+    public void ForceReset()
+{
+    StopAllCoroutines();
+    meshRenderer.material.color = originalColor;
+    isInCollisionState = false;
+}
+
+void OnDisable()
+{
+    ForceReset();
+}
 
     private void StartCollisionEffect()
     {
@@ -42,14 +53,11 @@ public class CollisionColorChanger : MonoBehaviour
         // StartCoroutine(SmoothColorTransition(collisionColor, 0.5f));
     }
 
-    private void ResetCollisionEffect()
-    {
-        meshRenderer.material.color = originalColor;
-        isInCollisionState = false;
-        
-        // Альтернативный вариант с плавным изменением:
-        // StartCoroutine(SmoothColorTransition(originalColor, 0.5f));
-    }
+    public void ResetCollisionEffect() // Изменено на public
+{
+    meshRenderer.material.color = originalColor;
+    isInCollisionState = false;
+}
 
     private IEnumerator SmoothColorTransition(Color targetColor, float duration)
     {

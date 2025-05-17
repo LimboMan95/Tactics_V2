@@ -18,6 +18,7 @@ public class DickControlledCube : MonoBehaviour
     [Header("Direction Tile Settings")]
     public string directionTileTag = "DirectionTile";
     public float tileActivationDelay = 0.3f;
+    public float tileSize = 1f; 
 
     [Header("Visual Settings")]
     public float snapThreshold = 0.5f;
@@ -27,13 +28,13 @@ public class DickControlledCube : MonoBehaviour
     [Header("References")]
     public Transform mainPointer;
     public Transform visualPointer;
-    [Header("Movement Control")]
-    public bool movementEnabled = true; // Новый флаг
-     public Vector3 currentDirection = Vector3.forward; // Явная инициализация
 
+    [Header("Movement Control")]
+    public bool movementEnabled = true;
+    public Vector3 currentDirection = Vector3.forward;
 
     private Rigidbody rb;
-    private bool isRotating = false;
+    [SerializeField] private bool isRotating = false;
     [SerializeField] private bool isGrounded = true;
     private Vector3 lastGridPosition;
     private GameObject lastHighlightedTile;
@@ -42,20 +43,21 @@ public class DickControlledCube : MonoBehaviour
     private Quaternion initialRotation;
     private Vector3 visualPointerLocalPosition;
     private Quaternion visualPointerLocalRotation;
-
+    private GameObject lastDirectionTile;
+    private Vector3 entryPoint;
+    private float halfTileSize;
+    private Vector3 tileEntryPoint;
+    private bool isOnDirectionTile;
     public bool IsGrounded => isGrounded;
-    public Vector3 CurrentDirection => currentDirection;
-    public float CurrentSpeed => speed;
 
     void Awake()
-{
-    if(mainPointer != null) 
-        currentDirection = mainPointer.forward;
-}
+    {
+        if(mainPointer != null) 
+            currentDirection = mainPointer.forward;
+    }
+
     void Start()
     {
-        
-         // Гарантированная инициализация направления
         if(mainPointer != null && currentDirection == Vector3.zero)
         {
             currentDirection = mainPointer.forward;
@@ -65,7 +67,6 @@ public class DickControlledCube : MonoBehaviour
         rb.freezeRotation = true;
         rb.useGravity = false;
 
-        // Сохраняем начальное состояние
         initialPosition = transform.position;
         initialRotation = transform.rotation;
 
@@ -78,54 +79,116 @@ public class DickControlledCube : MonoBehaviour
         currentDirection = mainPointer.forward;
         lastGridPosition = GetSnappedPosition(transform.position);
         isGrounded = CheckGround();
+        halfTileSize = tileSize / 2f;
+        Debug.Log($"Rigidbody: isKinematic={rb.isKinematic}, UseGravity={rb.useGravity}, Drag={rb.linearDamping}");
     }
+
     void Update()
-{
-    if (Input.GetKeyDown(KeyCode.T))
     {
-        StartCoroutine(RotateToDirection(Vector3.forward));
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            StartCoroutine(RotateToDirection(Vector3.forward));
+        }
     }
+
+
+
+
+public void SetRotatingState(bool state) {
+    isRotating = state;
+    Debug.Log($"Rotation state set to: {state}");
 }
 
     void FixedUpdate()
-{
-    // Первым делом проверяем grounded состояние (как в старой версии)
-    isGrounded = CheckGround();
-    
-    if (!isGrounded)
     {
-        StartFalling();
-        return;
-    }
-    
-    // Если не в процессе вращения - обрабатываем движение
-    if (!isRotating)
-    {
+        UpdateVisualPointers();
+
+        // 1. Обработка тайлов направления
         CheckDirectionTileUnderneath();
-        HandleMovement();
-    }
-    
-    // Добавляем обновление указателей из старой версии
-    if (visualPointer != null && mainPointer != null)
-    {
-        visualPointer.position = Vector3.Lerp(
-            visualPointer.position,
-            mainPointer.TransformPoint(visualPointerLocalPosition),
-            Time.fixedDeltaTime * 20f
-        );
         
-        visualPointer.rotation = Quaternion.Slerp(
-            visualPointer.rotation,
-            mainPointer.rotation * visualPointerLocalRotation,
-            Time.fixedDeltaTime * 20f
-        );
+        // 2. Поворот при прохождении половины тайла
+        if (isOnDirectionTile && !isRotating && lastDirectionTile != null)
+        {
+            float distance = Vector3.Dot(transform.position - tileEntryPoint, currentDirection.normalized);
+            if (distance >= halfTileSize && ShouldRotateOnTile(lastDirectionTile.transform.forward))
+            {
+                StartCoroutine(RotateToDirection(lastDirectionTile.transform.forward));
+            }
+        }
+
+        // 3. Основное движение
+        if (movementEnabled && !isRotating && isGrounded)
+        {
+            HandleMovement();
+        }
+        else if (!movementEnabled)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+        Debug.Log($"Velocity: {rb.linearVelocity}, Speed: {rb.linearVelocity.magnitude}");
     }
-     if (!movementEnabled) 
+
+
+void HandleMovementState()
+{
+    if (!isGrounded || rb.isKinematic) return;
+
+    if (movementEnabled && !isRotating)
+    {
+        // Убрать снэппинг на время движения (или использовать rb.MovePosition)
+    // if (ShouldSnapToGrid()) SnapToGrid(); 
+
+        // Только если нет препятствий впереди
+         if (!Physics.Raycast(transform.position, currentDirection, checkDistance, obstacleMask)) {
+        rb.linearVelocity = currentDirection * speed;
+    }
+    else {
+        rb.linearVelocity = Vector3.zero;
+        StartCoroutine(RotateOnCollision());
+    }
+    }
+    else // Если движение выключено или вращаемся
     {
         rb.linearVelocity = Vector3.zero;
-        return;
+        rb.angularVelocity = Vector3.zero;
     }
 }
+
+ void OnTriggerEnter(Collider other)
+    {
+        if (!other.CompareTag(directionTileTag)) return;
+        
+        lastDirectionTile = other.gameObject;
+        tileEntryPoint = transform.position;
+        isOnDirectionTile = true;
+        
+        if (movementEnabled)
+        {
+            Vector3 tileDirection = other.transform.forward;
+            if (Vector3.Angle(currentDirection, tileDirection) > 5f)
+            {
+                StartCoroutine(RotateToDirection(tileDirection));
+            }
+        }
+    }
+
+    void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag(directionTileTag))
+        {
+            isOnDirectionTile = false;
+            lastDirectionTile = null;
+        }
+    }
+ void UpdateVisualPointers()
+    {
+        if (visualPointer == null || mainPointer == null) return;
+        
+        visualPointer.position = mainPointer.TransformPoint(visualPointerLocalPosition);
+        visualPointer.rotation = mainPointer.rotation * visualPointerLocalRotation;
+    }
+
 
     public void ToggleMovement()
     {
@@ -133,19 +196,33 @@ public class DickControlledCube : MonoBehaviour
         Debug.Log($"Movement {(movementEnabled ? "ENABLED" : "DISABLED")}");
     }
     
-    public void DisableMovement()
+   public void DisableMovement()
+{
+    movementEnabled = false;
+    
+    if (TryGetComponent<Rigidbody>(out var rb))
     {
-        movementEnabled = false;
-        
-        // Дополнительно останавливаем физику
-        if (TryGetComponent<Rigidbody>(out var rb))
+        // Для kinematic bodies только останавливаем вращение
+        if (!rb.isKinematic)
         {
             rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
         }
-        
-        Debug.Log("Movement FORCED to FALSE");
+        rb.angularVelocity = Vector3.zero;
     }
+}
+public void ResetPhysics()
+{
+    if (TryGetComponent<Rigidbody>(out var rb))
+    {
+        if (!rb.isKinematic)
+        {
+            rb.linearVelocity = Vector3.zero;
+        }
+        rb.angularVelocity = Vector3.zero;
+        rb.freezeRotation = true;
+    }
+    isGrounded = CheckGround();
+}
 
     public void UpdateDirection(Vector3 newDirection)
 {
@@ -153,15 +230,54 @@ public class DickControlledCube : MonoBehaviour
     if(mainPointer != null) mainPointer.forward = newDirection;
     if(visualPointer != null) visualPointer.forward = newDirection;
 }
-
-public void ForceUpdateDirection(Vector3 newDirection)
+public void Revive()
+{
+    if (TryGetComponent<Rigidbody>(out var rb))
     {
-        currentDirection = newDirection.normalized;
-        if(mainPointer != null) mainPointer.forward = currentDirection;
-        if(visualPointer != null) visualPointer.forward = currentDirection;
+        rb.WakeUp();
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
     }
+    
+    // Сброс цветового эффекта
+    if (TryGetComponent<CollisionColorChanger>(out var colorChanger))
+    {
+        colorChanger.ResetCollisionEffect();
+    }
+    
+    isGrounded = CheckGround();
+}
+public void FullReset() {
+    StopAllCoroutines();
+    isRotating = false;
+    isGrounded = true;
+    movementEnabled = false;
+    
+    if (TryGetComponent<Rigidbody>(out var rb)) {
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = false;
+        rb.freezeRotation = true;
+    }
+    
+    // Принудительная проверка земли
+    StartCoroutine(DelayedGroundCheck());
+}
 
-    /// <summary> Сбрасывает куб в начальное состояние </summary>
+private IEnumerator DelayedGroundCheck() {
+    yield return new WaitForFixedUpdate();
+    isGrounded = CheckGround();
+    Debug.Log($"Ground check after reset: {isGrounded}");
+}
+public void ForceUpdateDirection(Vector3 newDirection)
+{
+    currentDirection = newDirection.normalized;
+    mainPointer.forward = currentDirection; // Жёстко синхронизируем
+    visualPointer.forward = currentDirection;
+    
+    Debug.Log($"Direction updated: {currentDirection}");
+}
+
     public void ResetToInitialState()
     {
         transform.position = initialPosition;
@@ -184,21 +300,9 @@ public void ForceUpdateDirection(Vector3 newDirection)
 
     void HandleMovement()
     {
-        if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
+        if (ShouldSnapToGrid())
         {
-            if (hit.collider.CompareTag(directionTileTag))
-            {
-                Vector3 tileDirection = hit.transform.forward;
-                
-                if (Vector3.Angle(currentDirection, tileDirection) > 5f)
-                {
-                    if (HasPassedHalfCell())
-                    {
-                        StartCoroutine(RotateToDirection(tileDirection));
-                        return;
-                    }
-                }
-            }
+            SnapToGrid();
         }
 
         if (!Physics.Raycast(transform.position, currentDirection, checkDistance, obstacleMask))
@@ -207,64 +311,92 @@ public void ForceUpdateDirection(Vector3 newDirection)
         }
         else
         {
+            rb.linearVelocity = Vector3.zero;
             StartCoroutine(RotateOnCollision());
         }
     }
 
- IEnumerator RotateToDirection(Vector3 newDirection)
+// Новый вспомогательный метод для проверки тайлов
+private bool CheckDirectionTileUnderneath(out Vector3 tileDirection)
 {
-    isRotating = true;
-    rb.linearVelocity = Vector3.zero;
-
-    Quaternion startRotation = transform.rotation;
-    Quaternion targetRotation = Quaternion.LookRotation(newDirection);
-    float elapsed = 0f;
-
-    while (elapsed < 1f)
+    tileDirection = Vector3.zero;
+    if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
     {
-        // Возвращаем старый подход с transform.rotation
-        transform.rotation = Quaternion.Slerp(startRotation, targetRotation, elapsed);
-        mainPointer.rotation = transform.rotation;
-        currentDirection = transform.forward;
-        elapsed += Time.fixedDeltaTime * rotationSpeed;
-        yield return new WaitForFixedUpdate();
+        if (hit.collider.CompareTag(directionTileTag))
+        {
+            tileDirection = hit.transform.forward;
+            return true;
+        }
     }
-
-    transform.rotation = targetRotation;
-    mainPointer.rotation = targetRotation;
-    currentDirection = newDirection;
-    SnapToGrid();
-    isRotating = false;
+    return false;
 }
 
-IEnumerator RotateOnCollision()
+// Проверка необходимости поворота на тайле
+private bool ShouldRotateOnTile(Vector3 tileDirection)
 {
-    isRotating = true;
-    rb.linearVelocity = Vector3.zero;
+    return Vector3.Angle(currentDirection, tileDirection) > 5f && HasPassedHalfCell();
+}
+bool ShouldSnapToGrid()
+{
+    return Vector3.Distance(transform.position, GetSnappedPosition(transform.position)) > 0.05f;
+}
 
-    RaycastHit hit;
-    Physics.Raycast(transform.position, currentDirection, out hit, checkDistance, obstacleMask);
-    Vector3 newDirection = Vector3.Reflect(currentDirection, hit.normal).normalized;
-
-    Quaternion startRotation = transform.rotation;
-    Quaternion targetRotation = Quaternion.LookRotation(newDirection);
-    float elapsed = 0f;
-
-    while (elapsed < 1f)
+  IEnumerator RotateToDirection(Vector3 newDirection)
     {
-        transform.rotation = Quaternion.Slerp(startRotation, targetRotation, elapsed);
-        mainPointer.rotation = transform.rotation;
-        currentDirection = transform.forward;
-        elapsed += Time.fixedDeltaTime * rotationSpeed;
-        yield return new WaitForFixedUpdate();
+        if (isRotating) yield break;
+        
+        isRotating = true;
+        rb.linearVelocity = Vector3.zero;
+
+        Quaternion startRotation = transform.rotation;
+        Quaternion targetRotation = Quaternion.LookRotation(newDirection);
+        float elapsed = 0f;
+
+        while (elapsed < 1f)
+        {
+            transform.rotation = Quaternion.Slerp(startRotation, targetRotation, elapsed);
+            mainPointer.rotation = transform.rotation;
+            currentDirection = transform.forward;
+            elapsed += Time.fixedDeltaTime * rotationSpeed;
+            yield return new WaitForFixedUpdate();
+        }
+
+        transform.rotation = targetRotation;
+        mainPointer.rotation = targetRotation;
+        currentDirection = newDirection;
+        SnapToGrid();
+        isRotating = false;
     }
 
-    transform.rotation = targetRotation;
-    mainPointer.rotation = transform.rotation;
-    currentDirection = newDirection;
-    SnapToGrid();
-    isRotating = false;
-}
+    IEnumerator RotateOnCollision()
+    {
+        isRotating = true;
+        rb.linearVelocity = Vector3.zero;
+
+        RaycastHit hit;
+        Physics.Raycast(transform.position, currentDirection, out hit, checkDistance, obstacleMask);
+        Vector3 newDirection = Vector3.Reflect(currentDirection, hit.normal).normalized;
+
+        Quaternion startRotation = transform.rotation;
+        Quaternion targetRotation = Quaternion.LookRotation(newDirection);
+        float elapsed = 0f;
+
+        while (elapsed < 1f)
+        {
+            transform.rotation = Quaternion.Slerp(startRotation, targetRotation, elapsed);
+            mainPointer.rotation = transform.rotation;
+            currentDirection = transform.forward;
+            elapsed += Time.fixedDeltaTime * rotationSpeed;
+            yield return new WaitForFixedUpdate();
+        }
+
+        transform.rotation = targetRotation;
+        mainPointer.rotation = targetRotation;
+        currentDirection = newDirection;
+        SnapToGrid();
+        isRotating = false;
+    }
+
 
     void CheckDirectionTileUnderneath()
     {
@@ -314,33 +446,9 @@ IEnumerator RotateOnCollision()
         if (!isGrounded) StartFalling();
     }
 
-    bool CheckGround()
-    {
-        float halfSize = cubeSize * 0.5f * transform.localScale.x;
-        Vector3[] checkPoints = new Vector3[]
-        {
-            transform.position,
-            transform.position + transform.TransformDirection(new Vector3(-halfSize, 0, -halfSize)),
-            transform.position + transform.TransformDirection(new Vector3(-halfSize, 0, halfSize)),
-            transform.position + transform.TransformDirection(new Vector3(halfSize, 0, -halfSize)),
-            transform.position + transform.TransformDirection(new Vector3(halfSize, 0, halfSize))
-        };
-
-        int hits = 0;
-        foreach (Vector3 point in checkPoints)
-        {
-            if (Physics.Raycast(point, Vector3.down, groundCheckDistance, groundMask))
-            {
-                hits++;
-                Debug.DrawRay(point, Vector3.down * groundCheckDistance, Color.green, 1f);
-            }
-            else
-            {
-                Debug.DrawRay(point, Vector3.down * groundCheckDistance, Color.red, 1f);
-            }
-        }
-        return hits >= 3;
-    }
+    bool CheckGround() {
+    return Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundMask);
+}
 
     void StartFalling()
     {
@@ -348,26 +456,29 @@ IEnumerator RotateOnCollision()
         rb.useGravity = true;
     }
 
-    void SnapToGrid()
+   void SnapToGrid()
     {
         Vector3 snappedPos = GetSnappedPosition(transform.position);
         snappedPos.y = transform.position.y;
-        transform.position = snappedPos;
-        lastGridPosition = snappedPos;
+        if (Vector3.Distance(transform.position, snappedPos) > 0.01f)
+        {
+            transform.position = snappedPos;
+            lastGridPosition = snappedPos;
+        }
     }
 
-    Vector3 GetSnappedPosition(Vector3 pos)
+   Vector3 GetSnappedPosition(Vector3 position)
     {
         return new Vector3(
-            Mathf.Round(pos.x),
-            Mathf.Round(pos.y),
-            Mathf.Round(pos.z)
+            Mathf.Round(position.x / tileSize) * tileSize,
+            position.y,
+            Mathf.Round(position.z / tileSize) * tileSize
         );
     }
 
     bool HasPassedHalfCell()
     {
-        Vector3 delta = transform.position - lastGridPosition;
-        return Mathf.Abs(delta.x) >= snapThreshold || Mathf.Abs(delta.z) >= snapThreshold;
+        Vector3 snappedPos = GetSnappedPosition(transform.position);
+        return Vector3.Distance(snappedPos, lastGridPosition) >= halfTileSize;
     }
 }

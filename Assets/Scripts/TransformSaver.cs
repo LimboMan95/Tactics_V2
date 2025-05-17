@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections; // Добавьте эту строку в самый верх файла
 
 public class TransformSaver : MonoBehaviour
 {
@@ -51,42 +52,69 @@ public class TransformSaver : MonoBehaviour
         savedTransforms.movementDirection = mainPointer.forward;
     }
 
-    [ContextMenu("Reset Transforms")]
-    public void ResetTransforms()
+[ContextMenu("Reset Transforms")]
+public void ResetTransforms()
+{
+    if (!CheckReferences()) return;
+
+    // 1. Полное отключение
+    cubeController.enabled = false;
+    cubeController.DisableMovement();
+
+    // 2. Получаем компоненты
+    var rb = cubeController.GetComponent<Rigidbody>();
+    var colliders = cubeController.GetComponents<Collider>();
+
+    // 3. Жёсткий сброс
+    rb.isKinematic = true;
+    cubeController.transform.position = savedTransforms.position;
+    cubeController.transform.rotation = savedTransforms.rotation;
+    Physics.SyncTransforms(); // Принудительно обновляем физику
+rb.WakeUp(); // Будим Rigidbody
+
+    // 4. Перезагрузка коллайдеров
+    foreach (var col in colliders)
     {
-        if (!CheckReferences()) return;
-
-        // Временное отключение физики
-        bool wasKinematic = cubeController.GetComponent<Rigidbody>().isKinematic;
-        cubeController.GetComponent<Rigidbody>().isKinematic = true;
-
-        // Восстановление трансформов
-        cubeController.transform.position = savedTransforms.position;
-        cubeController.transform.rotation = savedTransforms.rotation;
-        cubeController.transform.localScale = savedTransforms.localScale;
-
-        // Восстановление указателей
-        mainPointer.localPosition = savedTransforms.pointer1Position;
-        mainPointer.localRotation = savedTransforms.pointer1Rotation;
-        visualPointer.localPosition = savedTransforms.pointer2Position;
-        visualPointer.localRotation = savedTransforms.pointer2Rotation;
-
-        // Принудительная синхронизация направления
-        cubeController.currentDirection = savedTransforms.movementDirection;
-        mainPointer.forward = savedTransforms.movementDirection;
-        visualPointer.forward = savedTransforms.movementDirection;
-
-        // Возвращаем исходное состояние физики
-        cubeController.GetComponent<Rigidbody>().isKinematic = wasKinematic;
-
-        if (disableMovementOnReset)
-        {
-            cubeController.movementEnabled = false;
-            cubeController.GetComponent<Rigidbody>().linearVelocity = Vector3.zero;
-        }
-
-        Debug.Log($"Direction after reset: {cubeController.currentDirection}");
+        col.enabled = false;
+        col.enabled = true;
     }
+
+    // 5. Восстановление указателей
+    mainPointer.localPosition = savedTransforms.pointer1Position;
+    mainPointer.localRotation = savedTransforms.pointer1Rotation;
+    visualPointer.localPosition = savedTransforms.pointer2Position;
+    visualPointer.localRotation = savedTransforms.pointer2Rotation;
+
+    // 6. Обновление направления
+    cubeController.ForceUpdateDirection(savedTransforms.movementDirection);
+
+    // 7. Включение обратно
+    rb.isKinematic = false;
+    cubeController.enabled = true;
+    cubeController.Revive(); // Вызовет ResetCollisionEffect внутри себя
+    cubeController.movementEnabled = !disableMovementOnReset;
+
+    Debug.Log("Complete reset with color reset");
+}
+
+private IEnumerator ReviveCube()
+{
+    yield return new WaitForFixedUpdate();
+    
+    var rb = cubeController.GetComponent<Rigidbody>();
+    rb.WakeUp();
+    
+    // Принудительная проверка коллизий
+    Physics.SyncTransforms();
+    
+    var colorChanger = cubeController.GetComponent<CollisionColorChanger>();
+if (colorChanger != null) 
+{
+    colorChanger.ResetCollisionEffect();
+}
+    cubeController.SetRotatingState(false);
+    cubeController.movementEnabled = !disableMovementOnReset;
+}
 
     private bool CheckReferences()
     {
