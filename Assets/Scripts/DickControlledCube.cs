@@ -108,14 +108,19 @@ public void SetRotatingState(bool state) {
         CheckDirectionTileUnderneath();
         
         // 2. Поворот при прохождении половины тайла
-        if (isOnDirectionTile && !isRotating && lastDirectionTile != null)
-        {
-            float distance = Vector3.Dot(transform.position - tileEntryPoint, currentDirection.normalized);
-            if (distance >= halfTileSize && ShouldRotateOnTile(lastDirectionTile.transform.forward))
-            {
-                StartCoroutine(RotateToDirection(lastDirectionTile.transform.forward));
+        if (isOnDirectionTile && !isRotating && lastDirectionTile != null) {
+        // Вычисляем пройденное расстояние по направлению движения
+        float distance = Vector3.Dot(transform.position - tileEntryPoint, currentDirection);
+        
+        // Поворачиваем только после прохождения половины тайла
+        if (distance >= tileSize * 0.5f) { // tileSize - размер тайла
+            Vector3 tileDirection = lastDirectionTile.transform.forward;
+            if (Vector3.Angle(currentDirection, tileDirection) > 5f) {
+                StartCoroutine(RotateToDirection(tileDirection));
+                isOnDirectionTile = false; // Предотвращаем повторный поворот
             }
         }
+    }
 
         // 3. Основное движение
         if (movementEnabled && !isRotating) {
@@ -157,23 +162,14 @@ public void SetRotatingState(bool state) {
     //}
 //}
 
- void OnTriggerEnter(Collider other)
-    {
-        if (!other.CompareTag(directionTileTag)) return;
-        
-        lastDirectionTile = other.gameObject;
-        tileEntryPoint = transform.position;
-        isOnDirectionTile = true;
-        
-        if (movementEnabled)
-        {
-            Vector3 tileDirection = other.transform.forward;
-            if (Vector3.Angle(currentDirection, tileDirection) > 5f)
-            {
-                StartCoroutine(RotateToDirection(tileDirection));
-            }
-        }
-    }
+ void OnTriggerEnter(Collider other) {
+    if (!other.CompareTag(directionTileTag)) return;
+    
+    lastDirectionTile = other.gameObject;
+    tileEntryPoint = transform.position; // Фиксируем точку входа
+    isOnDirectionTile = true;
+    // Убрали немедленный поворот!
+}
 
     void OnTriggerExit(Collider other)
     {
