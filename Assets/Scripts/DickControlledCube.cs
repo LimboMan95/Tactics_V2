@@ -49,6 +49,9 @@ public class DickControlledCube : MonoBehaviour
     private Vector3 tileEntryPoint;
     private bool isOnDirectionTile;
     public bool IsGrounded => isGrounded;
+    public Vector3 InitialPosition => initialPosition;
+public Rigidbody RB => rb;
+public bool IsMovementEnabled => movementEnabled;
 
     void Awake()
     {
