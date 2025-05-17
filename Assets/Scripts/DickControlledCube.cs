@@ -102,6 +102,7 @@ public void SetRotatingState(bool state) {
     void FixedUpdate()
     {
         UpdateVisualPointers();
+        PeriodicGroundCheck();
 
         // 1. Обработка тайлов направления
         CheckDirectionTileUnderneath();
@@ -117,43 +118,44 @@ public void SetRotatingState(bool state) {
         }
 
         // 3. Основное движение
-        if (movementEnabled && !isRotating && isGrounded)
-        {
+        if (movementEnabled && !isRotating) {
+        if (isGrounded) {
             HandleMovement();
         }
         else if (!movementEnabled)
         {
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
+        } 
         }
-        Debug.Log($"Velocity: {rb.linearVelocity}, Speed: {rb.linearVelocity.magnitude}");
+         Debug.Log($"Movement: enabled={movementEnabled}, rotating={isRotating}, grounded={isGrounded}");
     }
 
 
-void HandleMovementState()
-{
-    if (!isGrounded || rb.isKinematic) return;
+//void HandleMovementState()
+//{
+    //if (!isGrounded || rb.isKinematic) return;
 
-    if (movementEnabled && !isRotating)
-    {
+    //if (movementEnabled && !isRotating)
+    //{
         // Убрать снэппинг на время движения (или использовать rb.MovePosition)
     // if (ShouldSnapToGrid()) SnapToGrid(); 
 
         // Только если нет препятствий впереди
-         if (!Physics.Raycast(transform.position, currentDirection, checkDistance, obstacleMask)) {
-        rb.linearVelocity = currentDirection * speed;
-    }
-    else {
-        rb.linearVelocity = Vector3.zero;
-        StartCoroutine(RotateOnCollision());
-    }
-    }
-    else // Если движение выключено или вращаемся
-    {
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-    }
-}
+        // if (!Physics.Raycast(transform.position, currentDirection, checkDistance, obstacleMask)) {
+        //rb.linearVelocity = currentDirection * speed;
+   // }
+    //else {
+       // rb.linearVelocity = Vector3.zero;
+       // StartCoroutine(RotateOnCollision());
+   // }
+   // }
+   // else // Если движение выключено или вращаемся
+   // {
+    //    rb.linearVelocity = Vector3.zero;
+    //    rb.angularVelocity = Vector3.zero;
+    //}
+//}
 
  void OnTriggerEnter(Collider other)
     {
@@ -447,7 +449,10 @@ bool ShouldSnapToGrid()
     }
 
     bool CheckGround() {
-    return Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundMask);
+    Debug.DrawRay(transform.position, Vector3.down * groundCheckDistance, Color.red, 0.5f);
+    bool grounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundMask);
+    Debug.Log($"Ground check: {grounded}");
+    return grounded;
 }
 
     void StartFalling()
@@ -456,16 +461,14 @@ bool ShouldSnapToGrid()
         rb.useGravity = true;
     }
 
-   void SnapToGrid()
-    {
+  void SnapToGrid() {
+    // Снэп только при почти нулевой скорости
+    if (rb.linearVelocity.magnitude < 0.1f) {
         Vector3 snappedPos = GetSnappedPosition(transform.position);
         snappedPos.y = transform.position.y;
-        if (Vector3.Distance(transform.position, snappedPos) > 0.01f)
-        {
-            transform.position = snappedPos;
-            lastGridPosition = snappedPos;
-        }
+        rb.MovePosition(snappedPos); // Плавное перемещение
     }
+}
 
    Vector3 GetSnappedPosition(Vector3 position)
     {
