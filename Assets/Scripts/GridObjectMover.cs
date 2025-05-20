@@ -1,12 +1,11 @@
 using UnityEngine;
 using System.Collections;
+using System;
 
 [RequireComponent(typeof(DickControlledCube))]
 public class GridObjectMover : MonoBehaviour
 {
     [Header("Settings")]
-    public LayerMask movableObjectsLayer;
-    public LayerMask levelDesignLayer;
     public KeyCode editModeKey = KeyCode.E;
     public KeyCode cancelKey = KeyCode.Escape;
     public float raycastDistance = 100f;
@@ -30,6 +29,21 @@ public class GridObjectMover : MonoBehaviour
     [Header("Direction Tile Settings")]
 public bool preventDirectionTileOverlap = true;
 public LayerMask directionTileLayer;
+
+[Header("Visual Feedback")]
+public Color validPlacementColor = Color.green;
+public Color invalidPlacementColor = Color.red;
+public float placementCheckInterval = 0.1f;
+private Vector3 originalObjectPosition;
+private bool isPositionValid;
+private Renderer[] objectRenderers;
+public Color validColor = new Color(0.2f, 1f, 0.2f, 0.7f); // Зеленый
+public Color invalidColor = new Color(1f, 0.2f, 0.2f, 0.7f); // Красный
+
+[Header("Collision Settings")]
+public LayerMask movableObjectsLayer; // Общий слой для всех перемещаемых объектов (включая поворотные тайлы)
+public LayerMask staticObstaclesLayer; // Слой статических препятствий
+
 
     private void Awake()
     {
@@ -136,35 +150,88 @@ public LayerMask directionTileLayer;
     }
 
     private void StopEditMode()
+{
+    if (selectedObject != null && !isPositionValid)
     {
-        isInEditMode = false;
-        if (selectedObject != null)
+        selectedObject.transform.position = originalObjectPosition;
+    }
+    
+    ResetObjectColor();
+    isInEditMode = false;
+    selectedObject = null;
+    StopAllCoroutines();
+    Debug.Log("Режим редактирования отключен");
+}
+
+    private void HandleObjectSelection()
+{
+    if (Input.GetMouseButtonDown(0))
+    {
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        RaycastHit hit;
+        
+        if (Physics.Raycast(ray, out hit, raycastDistance, movableObjectsLayer))
         {
-            ResetObjectHighlight();
+            if (selectedObject != null)
+                ResetObjectAppearance();
+            
+            selectedObject = hit.collider.gameObject;
+            originalObjectPosition = selectedObject.transform.position;
+            
+            objectRenderers = selectedObject.GetComponentsInChildren<Renderer>();
+            originalMaterials = new Material[objectRenderers.Length][];
+            
+            for (int i = 0; i < objectRenderers.Length; i++)
+            {
+                originalMaterials[i] = new Material[objectRenderers[i].materials.Length];
+                System.Array.Copy(objectRenderers[i].materials, originalMaterials[i], objectRenderers[i].materials.Length);
+            }
+            
+            var checkResult = CheckPositionValidity(selectedObject.transform.position);
+            UpdateObjectVisuals(checkResult.isValid, checkResult.errorType);
         }
-        selectedObject = null;
-        Debug.Log("Режим редактирования отключен");
+    }
+}
+
+private IEnumerator CheckPlacementValidity()
+{
+    while (selectedObject != null)
+    {
+        // Теперь проверка происходит в HandleObjectMovement
+        yield return new WaitForSeconds(placementCheckInterval);
+    }
+}
+
+private void UpdateObjectVisuals(bool isValid, string errorType)
+{
+    if (objectRenderers == null) return;
+
+    Color targetColor = validColor;
+    
+    if (!isValid)
+    {
+        targetColor = errorType == "directionTile" ? 
+            new Color(1f, 0.4f, 0f, 0.7f) : // Оранжевый для тайлов
+            invalidColor; // Красный для остального
     }
 
-     private void HandleObjectSelection()
+    foreach (var renderer in objectRenderers)
     {
-        if (Input.GetMouseButtonDown(0))
+        Material[] tempMaterials = new Material[renderer.materials.Length];
+        
+        for (int i = 0; i < tempMaterials.Length; i++)
         {
-            Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-            RaycastHit hit;
-            
-            if (Physics.Raycast(ray, out hit, raycastDistance, movableObjectsLayer))
-            {
-                // Сбрасываем предыдущее выделение
-                ResetObjectHighlight();
-                
-                selectedObject = hit.collider.gameObject;
-                lastObjectPosition = selectedObject.transform.position;
-                
-                HighlightObject(selectedObject);
-            }
+            tempMaterials[i] = new Material(renderer.materials[i]);
+            tempMaterials[i].color = targetColor;
+            tempMaterials[i].SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            tempMaterials[i].SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            tempMaterials[i].EnableKeyword("_ALPHABLEND_ON");
+            tempMaterials[i].renderQueue = 3000;
         }
+        
+        renderer.materials = tempMaterials;
     }
+}
 
      private void HighlightObject(GameObject obj)
     {
@@ -216,46 +283,74 @@ public LayerMask directionTileLayer;
     }
 
     private void HandleObjectMovement()
+{
+    if (!selectedObject) return;
+
+    if (Input.GetMouseButton(0))
     {
-        if (!selectedObject) return;
-
-        if (Input.GetMouseButton(0))
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        RaycastHit hit;
+        
+        if (Physics.Raycast(ray, out hit, raycastDistance, cubeController.groundMask))
         {
-            Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-            RaycastHit hit;
+            Vector3 newPos = GetSnappedPosition(hit.point);
+            newPos.y = selectedObject.transform.position.y;
+            selectedObject.transform.position = newPos;
             
-            if (Physics.Raycast(ray, out hit, raycastDistance, cubeController.groundMask))
-            {
-                Vector3 newPos = GetSnappedPosition(hit.point);
-                newPos.y = selectedObject.transform.position.y;
-
-                 // Дополнительная проверка для поворотных тайлов
-            if (
-                selectedObject.layer == LayerMask.NameToLayer("Tools"))
-            {
-                if (IsDirectionTileOverlap(newPos))
-                {
-                    Debug.Log("Нельзя размещать поворотные тайлы друг на друга!");
-                    return;
-                }
-            }
-                
-                if (IsTileFree(newPos))
-                {
-                    selectedObject.transform.position = newPos;
-                }
-            }
-        }
-        else if (Input.GetMouseButtonUp(0))
-        {
-            if (!IsTileFree(selectedObject.transform.position))
-            {
-                selectedObject.transform.position = lastObjectPosition;
-                Debug.Log("Нельзя разместить здесь - тайл занят!");
-            }
-            selectedObject = null;
+            var checkResult = CheckPositionValidity(newPos);
+            UpdateObjectVisuals(checkResult.isValid, checkResult.errorType);
         }
     }
+    else if (Input.GetMouseButtonUp(0))
+    {
+        var checkResult = CheckPositionValidity(selectedObject.transform.position);
+        if (!checkResult.isValid)
+        {
+            selectedObject.transform.position = originalObjectPosition;
+        }
+        ResetObjectAppearance();
+        selectedObject = null;
+    }
+}
+
+private void ResetObjectAppearance()
+{
+    if (objectRenderers == null || originalMaterials == null) return;
+
+    for (int i = 0; i < objectRenderers.Length; i++)
+    {
+        // Восстанавливаем оригинальные материалы
+        objectRenderers[i].materials = originalMaterials[i];
+        
+        // Убедимся, что все оригинальные параметры шейдера восстановлены
+        foreach (var mat in objectRenderers[i].materials)
+        {
+            mat.DisableKeyword("_ALPHABLEND_ON");
+            mat.renderQueue = -1;
+        }
+    }
+    
+    // Очищаем ссылки
+    objectRenderers = null;
+    originalMaterials = null;
+}
+
+private void ResetObjectColor()
+{
+    if (objectRenderers != null && originalMaterials != null)
+    {
+        for (int i = 0; i < objectRenderers.Length; i++)
+        {
+            if (objectRenderers[i] != null)
+            {
+                objectRenderers[i].materials = originalMaterials[i];
+            }
+        }
+    }
+    
+    objectRenderers = null;
+    originalMaterials = null;
+}
 
     private bool IsDirectionTileOverlap(Vector3 position)
 {
@@ -277,33 +372,29 @@ public LayerMask directionTileLayer;
         );
     }
 
-    private bool IsTileFree(Vector3 position)
+    private (bool isValid, string errorType) CheckPositionValidity(Vector3 position)
 {
-    Collider[] allColliders = Physics.OverlapBox(
-        position, 
-        Vector3.one * (tileSize * 0.45f));
+    Vector3 checkPos = position + Vector3.up * 0.1f;
+    float checkSize = tileSize * 0.45f;
+    
+    Collider[] colliders = Physics.OverlapBox(checkPos, new Vector3(checkSize, 0.1f, checkSize));
 
-    foreach (var collider in allColliders)
+    foreach (var col in colliders)
     {
-        // Пропускаем триггеры и сам объект
-        if (collider.isTrigger || 
-            (selectedObject != null && collider.gameObject == selectedObject))
+        if (col.gameObject == selectedObject || 
+            ((1 << col.gameObject.layer) & cubeController.groundMask) != 0)
             continue;
 
-        // Проверка статических препятствий
-        if (((1 << collider.gameObject.layer) & levelDesignLayer) != 0)
-            return false;
+        // Статические препятствия
+        if (((1 << col.gameObject.layer) & staticObstaclesLayer) != 0)
+            return (false, "obstacle");
 
-        // Проверка других перемещаемых объектов
-        if (((1 << collider.gameObject.layer) & movableObjectsLayer) != 0)
-            return false;
-
-        // Специальная проверка для поворотных тайлов (по тегу и слою)
-        if (collider.gameObject.layer == LayerMask.NameToLayer("Tools"))
-            return false;
+        // Другие перемещаемые объекты
+        if (((1 << col.gameObject.layer) & movableObjectsLayer) != 0)
+        return (false, "tool");
     }
 
-    return true;
+    return (true, "valid");
 }
 
     private void OnDestroy()
