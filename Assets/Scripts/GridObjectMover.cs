@@ -27,11 +27,16 @@ public class GridObjectMover : MonoBehaviour
     private Renderer[] highlightedRenderers;
     private Material[][] originalMaterials;
 
+    [Header("Direction Tile Settings")]
+public bool preventDirectionTileOverlap = true;
+public LayerMask directionTileLayer;
+
     private void Awake()
     {
         if (!cubeController) cubeController = GetComponent<DickControlledCube>();
         if (!mainCamera) mainCamera = Camera.main;
         tileSize = cubeController.tileSize;
+        directionTileLayer = LayerMask.GetMask("Tools");
     }
 
     private IEnumerator Start()
@@ -223,6 +228,17 @@ public class GridObjectMover : MonoBehaviour
             {
                 Vector3 newPos = GetSnappedPosition(hit.point);
                 newPos.y = selectedObject.transform.position.y;
+
+                 // Дополнительная проверка для поворотных тайлов
+            if (
+                selectedObject.layer == LayerMask.NameToLayer("Tools"))
+            {
+                if (IsDirectionTileOverlap(newPos))
+                {
+                    Debug.Log("Нельзя размещать поворотные тайлы друг на друга!");
+                    return;
+                }
+            }
                 
                 if (IsTileFree(newPos))
                 {
@@ -241,6 +257,17 @@ public class GridObjectMover : MonoBehaviour
         }
     }
 
+    private bool IsDirectionTileOverlap(Vector3 position)
+{
+    Collider[] directionTiles = Physics.OverlapBox(
+        position,
+        Vector3.one * (tileSize * 0.45f),
+        Quaternion.identity,
+        LayerMask.GetMask("Tools"));
+
+    return directionTiles.Length > 0;
+}
+
     private Vector3 GetSnappedPosition(Vector3 position)
     {
         return new Vector3(
@@ -251,15 +278,33 @@ public class GridObjectMover : MonoBehaviour
     }
 
     private bool IsTileFree(Vector3 position)
-    {
-        Collider[] colliders = Physics.OverlapBox(
-            position, 
-            Vector3.one * (tileSize * 0.45f), 
-            Quaternion.identity, 
-            levelDesignLayer);
+{
+    Collider[] allColliders = Physics.OverlapBox(
+        position, 
+        Vector3.one * (tileSize * 0.45f));
 
-        return colliders.Length == 0;
+    foreach (var collider in allColliders)
+    {
+        // Пропускаем триггеры и сам объект
+        if (collider.isTrigger || 
+            (selectedObject != null && collider.gameObject == selectedObject))
+            continue;
+
+        // Проверка статических препятствий
+        if (((1 << collider.gameObject.layer) & levelDesignLayer) != 0)
+            return false;
+
+        // Проверка других перемещаемых объектов
+        if (((1 << collider.gameObject.layer) & movableObjectsLayer) != 0)
+            return false;
+
+        // Специальная проверка для поворотных тайлов (по тегу и слою)
+        if (collider.gameObject.layer == LayerMask.NameToLayer("Tools"))
+            return false;
     }
+
+    return true;
+}
 
     private void OnDestroy()
     {
