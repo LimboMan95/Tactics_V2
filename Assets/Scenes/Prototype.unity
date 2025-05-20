@@ -11663,6 +11663,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 908340947}
+        m_TargetAssemblyTypeName: GridObjectMover, Assembly-CSharp
+        m_MethodName: TurnOffWithButtonEditMode
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1494070343
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16488,7 +16500,6 @@ GameObject:
   - component: {fileID: 2125089392}
   - component: {fileID: 2125089391}
   - component: {fileID: 2125089390}
-  - component: {fileID: 2125089389}
   m_Layer: 5
   m_Name: Button Stop
   m_TagString: Untagged
@@ -16516,34 +16527,6 @@ RectTransform:
   m_AnchoredPosition: {x: -111, y: 143.3}
   m_SizeDelta: {x: 133.13, y: 86.18}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &2125089389
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2125089387}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 290d03903493d1a4585328d6a7e922b5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  buttonActions:
-    onClickEvents:
-      m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 908340935}
-          m_TargetAssemblyTypeName: DickControlledCube, Assembly-CSharp
-          m_MethodName: ToggleMovement
-          m_Mode: 1
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 0
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 1
-          m_CallState: 2
 --- !u!114 &2125089390
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16603,6 +16586,18 @@ MonoBehaviour:
       - m_Target: {fileID: 265856491}
         m_TargetAssemblyTypeName: TransformSaver, Assembly-CSharp
         m_MethodName: ResetTransforms
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+      - m_Target: {fileID: 908340947}
+        m_TargetAssemblyTypeName: GridObjectMover, Assembly-CSharp
+        m_MethodName: ForceEnableEditMode
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}

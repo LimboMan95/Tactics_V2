@@ -10,7 +10,7 @@ public class GridObjectMover : MonoBehaviour
     public KeyCode editModeKey = KeyCode.E;
     public KeyCode cancelKey = KeyCode.Escape;
     public float raycastDistance = 100f;
-    public bool startInEditMode = true; // Новая настройка
+    public bool startInEditMode = true;
     
     [Header("Visuals")]
     public Color highlightColor = Color.yellow;
@@ -24,8 +24,8 @@ public class GridObjectMover : MonoBehaviour
     private Vector3 lastObjectPosition;
     private bool isInEditMode;
     private float tileSize;
-    private Material originalMaterial;
-    private Coroutine highlightCoroutine;
+    private Renderer[] highlightedRenderers;
+    private Material[][] originalMaterials;
 
     private void Awake()
     {
@@ -34,8 +34,11 @@ public class GridObjectMover : MonoBehaviour
         tileSize = cubeController.tileSize;
     }
 
-    private void Start()
+    private IEnumerator Start()
     {
+        // Ждем один кадр, чтобы все компоненты инициализировались
+        yield return null;
+        
         if (startInEditMode && CanEnterEditMode())
         {
             StartEditMode();
@@ -52,6 +55,46 @@ public class GridObjectMover : MonoBehaviour
             HandleObjectMovement();
         }
     }
+
+     public void ToggleEditMode()
+    {
+        if (isInEditMode)
+        {
+            StopEditMode();
+        }
+        else if (CanEnterEditMode())
+        {
+            StartEditMode();
+        }
+        else
+        {
+            Debug.Log("Не могу войти в режим редактирования: не выполнены условия");
+        }
+    }
+    
+     public void TurnOffWithButtonEditMode()
+    {
+            if (isInEditMode)
+        {
+            StopEditMode();
+        }
+    }
+
+ public void ForceEnableEditMode()
+    {
+        if (!isInEditMode && CanEnterEditMode())
+        {
+            StartEditMode();
+        }
+        else if (isInEditMode)
+        {
+            Debug.Log("Режим редактирования уже активен");
+        }
+        else
+        {
+            Debug.LogWarning("Не могу принудительно включить режим: не выполнены условия");
+        }
+ }
 
     private void HandleEditModeToggle()
     {
@@ -98,7 +141,7 @@ public class GridObjectMover : MonoBehaviour
         Debug.Log("Режим редактирования отключен");
     }
 
-    private void HandleObjectSelection()
+     private void HandleObjectSelection()
     {
         if (Input.GetMouseButtonDown(0))
         {
@@ -108,72 +151,63 @@ public class GridObjectMover : MonoBehaviour
             if (Physics.Raycast(ray, out hit, raycastDistance, movableObjectsLayer))
             {
                 // Сбрасываем предыдущее выделение
-                if (selectedObject != null)
-                {
-                    ResetObjectHighlight();
-                }
+                ResetObjectHighlight();
                 
                 selectedObject = hit.collider.gameObject;
                 lastObjectPosition = selectedObject.transform.position;
-                Debug.Log($"Выбран объект: {selectedObject.name}", selectedObject);
                 
-                // Подсвечиваем объект
                 HighlightObject(selectedObject);
             }
         }
     }
 
-    private void HighlightObject(GameObject obj)
+     private void HighlightObject(GameObject obj)
     {
-        // Отменяем предыдущую подсветку если была
-        if (highlightCoroutine != null)
+        // Получаем все рендереры объекта и его детей
+        highlightedRenderers = obj.GetComponentsInChildren<Renderer>();
+        originalMaterials = new Material[highlightedRenderers.Length][];
+        
+        for (int i = 0; i < highlightedRenderers.Length; i++)
         {
-            StopCoroutine(highlightCoroutine);
+            // Сохраняем оригинальные материалы
+            originalMaterials[i] = highlightedRenderers[i].materials;
+            
+            // Создаем новые материалы для подсветки
+            Material[] highlightMats = new Material[highlightedRenderers[i].materials.Length];
+            for (int j = 0; j < highlightMats.Length; j++)
+            {
+                highlightMats[j] = new Material(originalMaterials[i][j]);
+                highlightMats[j].color = highlightColor;
+            }
+            
+            highlightedRenderers[i].materials = highlightMats;
         }
         
-        // Запоминаем оригинальный материал
-        var renderer = obj.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            originalMaterial = renderer.material;
-            
-            // Создаем копию материала для подсветки
-            Material highlightMat = new Material(originalMaterial);
-            highlightMat.color = highlightColor;
-            renderer.material = highlightMat;
-            
-            // Запускаем корутину для сброса подсветки
-            highlightCoroutine = StartCoroutine(ResetHighlightAfterDelay(renderer, highlightDuration));
-        }
+        // Запускаем таймер сброса подсветки
+        StartCoroutine(ResetHighlightAfterDelay(highlightDuration));
     }
 
-    private IEnumerator ResetHighlightAfterDelay(Renderer renderer, float delay)
+     private IEnumerator ResetHighlightAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
-        
-        if (renderer != null && originalMaterial != null)
-        {
-            renderer.material = originalMaterial;
-        }
-        highlightCoroutine = null;
+        ResetObjectHighlight();
     }
 
     private void ResetObjectHighlight()
     {
-        if (highlightCoroutine != null)
+        if (highlightedRenderers != null)
         {
-            StopCoroutine(highlightCoroutine);
-            highlightCoroutine = null;
-        }
-        
-        if (selectedObject != null)
-        {
-            var renderer = selectedObject.GetComponent<Renderer>();
-            if (renderer != null && originalMaterial != null)
+            for (int i = 0; i < highlightedRenderers.Length; i++)
             {
-                renderer.material = originalMaterial;
+                if (highlightedRenderers[i] != null && originalMaterials != null && originalMaterials[i] != null)
+                {
+                    highlightedRenderers[i].materials = originalMaterials[i];
+                }
             }
         }
+        
+        highlightedRenderers = null;
+        originalMaterials = null;
     }
 
     private void HandleObjectMovement()
