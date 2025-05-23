@@ -1,138 +1,97 @@
 using UnityEngine;
+using UnityEngine.UI;
 using System.Collections;
-using System;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(DickControlledCube))]
 public class GridObjectMover : MonoBehaviour
 {
-    [Header("Settings")]
+    [Header("Layer Settings")]
+    public LayerMask movableLayer; // Слой для перемещаемых объектов
+    public LayerMask rotatableLayer; // Слой для вращаемых объектов
+    public LayerMask staticObstaclesLayer; // Слой статических препятствий
+
+    [Header("Edit Mode Settings")]
     public KeyCode editModeKey = KeyCode.E;
     public KeyCode cancelKey = KeyCode.Escape;
-    public float raycastDistance = 100f;
     public bool startInEditMode = true;
-    
-    [Header("Visuals")]
+
+    [Header("Movement Settings")]
+    public float raycastDistance = 100f;
+    public float tileSize = 1f;
+
+    [Header("Rotation Settings")]
+    public float rotationDuration = 0.3f;
+    public Button rotateButton;
+    public Image rotationIndicator;
+    public Sprite[] directionSprites;
+
+    [Header("Visual Feedback")]
     public Color highlightColor = Color.yellow;
-    public float highlightDuration = 2f;
-    
-    [Header("References")]
-    [SerializeField] private DickControlledCube cubeController;
-    [SerializeField] private Camera mainCamera;
-    
+    public Color validColor = new Color(0.2f, 1f, 0.2f, 0.7f);
+    public Color invalidColor = new Color(1f, 0.2f, 0.2f, 0.7f);
+    public Color rotationColor = new Color(1f, 0.8f, 0.2f, 0.7f);
+
+    private Camera mainCamera;
+    private DickControlledCube cubeController;
     private GameObject selectedObject;
-    private Vector3 lastObjectPosition;
+    private Vector3 originalObjectPosition;
+    private int currentRotationIndex;
+    private bool isRotating;
     private bool isInEditMode;
-    private float tileSize;
-    private Renderer[] highlightedRenderers;
-    private Material[][] originalMaterials;
-
-    [Header("Direction Tile Settings")]
-public bool preventDirectionTileOverlap = true;
-public LayerMask directionTileLayer;
-
-[Header("Visual Feedback")]
-public Color validPlacementColor = Color.green;
-public Color invalidPlacementColor = Color.red;
-public float placementCheckInterval = 0.1f;
-private Vector3 originalObjectPosition;
-private bool isPositionValid;
-private Renderer[] objectRenderers;
-public Color validColor = new Color(0.2f, 1f, 0.2f, 0.7f); // Зеленый
-public Color invalidColor = new Color(1f, 0.2f, 0.2f, 0.7f); // Красный
-
-[Header("Collision Settings")]
-public LayerMask movableObjectsLayer; // Общий слой для всех перемещаемых объектов (включая поворотные тайлы)
-public LayerMask staticObstaclesLayer; // Слой статических препятствий
-
+    private Renderer[] objectRenderers;
+    private Dictionary<Renderer, Material[]> originalMaterials = new Dictionary<Renderer, Material[]>();
 
     private void Awake()
     {
-        if (!cubeController) cubeController = GetComponent<DickControlledCube>();
-        if (!mainCamera) mainCamera = Camera.main;
+        mainCamera = Camera.main;
+        cubeController = GetComponent<DickControlledCube>();
         tileSize = cubeController.tileSize;
-        directionTileLayer = LayerMask.GetMask("Tools");
     }
 
     private IEnumerator Start()
     {
-        // Ждем один кадр, чтобы все компоненты инициализировались
         yield return null;
-        
-        if (startInEditMode && CanEnterEditMode())
-        {
-            StartEditMode();
-        }
+        InitializeUI();
+        if (startInEditMode && CanEnterEditMode()) StartEditMode();
     }
 
     private void Update()
     {
         HandleEditModeToggle();
-        
         if (isInEditMode)
         {
             HandleObjectSelection();
             HandleObjectMovement();
+            HandleRotationInput();
         }
     }
 
-     public void ToggleEditMode()
+    #region UI Methods
+    private void InitializeUI()
     {
-        if (isInEditMode)
-        {
-            StopEditMode();
-        }
-        else if (CanEnterEditMode())
-        {
-            StartEditMode();
-        }
-        else
-        {
-            Debug.Log("Не могу войти в режим редактирования: не выполнены условия");
-        }
-    }
-    
-     public void TurnOffWithButtonEditMode()
-    {
-            if (isInEditMode)
-        {
-            StopEditMode();
-        }
+        if (rotateButton) rotateButton.onClick.AddListener(RotateSelectedObject);
+        UpdateUIState(false);
     }
 
- public void ForceEnableEditMode()
+    private void UpdateUIState(bool active)
     {
-        if (!isInEditMode && CanEnterEditMode())
-        {
-            StartEditMode();
-        }
-        else if (isInEditMode)
-        {
-            Debug.Log("Режим редактирования уже активен");
-        }
-        else
-        {
-            Debug.LogWarning("Не могу принудительно включить режим: не выполнены условия");
-        }
- }
+        if (rotateButton) rotateButton.interactable = active;
+        if (rotationIndicator) rotationIndicator.gameObject.SetActive(active);
+    }
+    #endregion
 
+    #region Edit Mode Control
     private void HandleEditModeToggle()
     {
-        if (Input.GetKeyDown(editModeKey))
-        {
-            if (!isInEditMode && CanEnterEditMode())
-            {
-                StartEditMode();
-            }
-            else if (isInEditMode)
-            {
-                StopEditMode();
-            }
-        }
+        if (Input.GetKeyDown(editModeKey)) ToggleEditMode();
+        if (isInEditMode && Input.GetKeyDown(cancelKey)) StopEditMode();
+    }
 
-        if (isInEditMode && Input.GetKeyDown(cancelKey))
-        {
-            StopEditMode();
-        }
+    public void ToggleEditMode()
+    {
+        if (isInEditMode) StopEditMode();
+        else if (CanEnterEditMode()) StartEditMode();
     }
 
     private bool CanEnterEditMode()
@@ -145,224 +104,192 @@ public LayerMask staticObstaclesLayer; // Слой статических пре
     private void StartEditMode()
     {
         isInEditMode = true;
-        Debug.Log("Режим редактирования активирован");
-        // Можно добавить дополнительную визуальную индикацию
+        Debug.Log("Edit mode activated");
     }
 
     private void StopEditMode()
-{
-    if (selectedObject != null && !isPositionValid)
     {
-        selectedObject.transform.position = originalObjectPosition;
+        ResetSelection();
+        isInEditMode = false;
+        Debug.Log("Edit mode deactivated");
     }
-    
-    ResetObjectColor();
-    isInEditMode = false;
-    selectedObject = null;
-    StopAllCoroutines();
-    Debug.Log("Режим редактирования отключен");
-}
+    #endregion
 
+    #region Object Selection
     private void HandleObjectSelection()
-{
-    if (Input.GetMouseButtonDown(0))
     {
-        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-        RaycastHit hit;
-        
-        if (Physics.Raycast(ray, out hit, raycastDistance, movableObjectsLayer))
+        if (Input.GetMouseButtonDown(0))
         {
-            if (selectedObject != null)
-                ResetObjectAppearance();
-            
-            selectedObject = hit.collider.gameObject;
-            originalObjectPosition = selectedObject.transform.position;
-            
-            objectRenderers = selectedObject.GetComponentsInChildren<Renderer>();
-            originalMaterials = new Material[objectRenderers.Length][];
-            
-            for (int i = 0; i < objectRenderers.Length; i++)
+            var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out var hit, raycastDistance, movableLayer))
             {
-                originalMaterials[i] = new Material[objectRenderers[i].materials.Length];
-                System.Array.Copy(objectRenderers[i].materials, originalMaterials[i], objectRenderers[i].materials.Length);
-            }
-            
-            var checkResult = CheckPositionValidity(selectedObject.transform.position);
-            UpdateObjectVisuals(checkResult.isValid, checkResult.errorType);
-        }
-    }
-}
-
-private IEnumerator CheckPlacementValidity()
-{
-    while (selectedObject != null)
-    {
-        // Теперь проверка происходит в HandleObjectMovement
-        yield return new WaitForSeconds(placementCheckInterval);
-    }
-}
-
-private void UpdateObjectVisuals(bool isValid, string errorType)
-{
-    if (objectRenderers == null) return;
-
-    Color targetColor = validColor;
-    
-    if (!isValid)
-    {
-        targetColor = errorType == "directionTile" ? 
-            new Color(1f, 0.4f, 0f, 0.7f) : // Оранжевый для тайлов
-            invalidColor; // Красный для остального
-    }
-
-    foreach (var renderer in objectRenderers)
-    {
-        Material[] tempMaterials = new Material[renderer.materials.Length];
-        
-        for (int i = 0; i < tempMaterials.Length; i++)
-        {
-            tempMaterials[i] = new Material(renderer.materials[i]);
-            tempMaterials[i].color = targetColor;
-            tempMaterials[i].SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            tempMaterials[i].SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            tempMaterials[i].EnableKeyword("_ALPHABLEND_ON");
-            tempMaterials[i].renderQueue = 3000;
-        }
-        
-        renderer.materials = tempMaterials;
-    }
-}
-
-     private void HighlightObject(GameObject obj)
-    {
-        // Получаем все рендереры объекта и его детей
-        highlightedRenderers = obj.GetComponentsInChildren<Renderer>();
-        originalMaterials = new Material[highlightedRenderers.Length][];
-        
-        for (int i = 0; i < highlightedRenderers.Length; i++)
-        {
-            // Сохраняем оригинальные материалы
-            originalMaterials[i] = highlightedRenderers[i].materials;
-            
-            // Создаем новые материалы для подсветки
-            Material[] highlightMats = new Material[highlightedRenderers[i].materials.Length];
-            for (int j = 0; j < highlightMats.Length; j++)
-            {
-                highlightMats[j] = new Material(originalMaterials[i][j]);
-                highlightMats[j].color = highlightColor;
-            }
-            
-            highlightedRenderers[i].materials = highlightMats;
-        }
-        
-        // Запускаем таймер сброса подсветки
-        StartCoroutine(ResetHighlightAfterDelay(highlightDuration));
-    }
-
-     private IEnumerator ResetHighlightAfterDelay(float delay)
-    {
-        yield return new WaitForSeconds(delay);
-        ResetObjectHighlight();
-    }
-
-    private void ResetObjectHighlight()
-    {
-        if (highlightedRenderers != null)
-        {
-            for (int i = 0; i < highlightedRenderers.Length; i++)
-            {
-                if (highlightedRenderers[i] != null && originalMaterials != null && originalMaterials[i] != null)
-                {
-                    highlightedRenderers[i].materials = originalMaterials[i];
-                }
+                SelectObject(hit.collider.gameObject);
             }
         }
-        
-        highlightedRenderers = null;
-        originalMaterials = null;
     }
 
-    private void HandleObjectMovement()
-{
-    if (!selectedObject) return;
-
-    if (Input.GetMouseButton(0))
+    private void SelectObject(GameObject obj)
     {
-        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-        RaycastHit hit;
-        
-        if (Physics.Raycast(ray, out hit, raycastDistance, cubeController.groundMask))
+        if (selectedObject != null && selectedObject != obj)
         {
-            Vector3 newPos = GetSnappedPosition(hit.point);
-            newPos.y = selectedObject.transform.position.y;
-            selectedObject.transform.position = newPos;
-            
-            var checkResult = CheckPositionValidity(newPos);
-            UpdateObjectVisuals(checkResult.isValid, checkResult.errorType);
+            ResetSelection();
+        }
+
+        selectedObject = obj;
+        originalObjectPosition = obj.transform.position;
+
+        // Сохраняем оригинальные материалы
+        objectRenderers = obj.GetComponentsInChildren<Renderer>();
+        foreach (var renderer in objectRenderers)
+        {
+            originalMaterials[renderer] = renderer.materials;
+        }
+
+        // Определяем можно ли вращать объект
+        bool isRotatable = ((1 << obj.layer) & rotatableLayer) != 0;
+        UpdateUIState(isRotatable);
+
+        if (isRotatable)
+        {
+            CalculateCurrentRotationIndex();
+            UpdateRotationVisual();
         }
     }
-    else if (Input.GetMouseButtonUp(0))
+
+    private void ResetSelection()
     {
-        var checkResult = CheckPositionValidity(selectedObject.transform.position);
-        if (!checkResult.isValid)
-        {
-            selectedObject.transform.position = originalObjectPosition;
-        }
-        ResetObjectAppearance();
+        RestoreOriginalMaterials();
+        UpdateUIState(false);
         selectedObject = null;
     }
-}
+    #endregion
 
-private void ResetObjectAppearance()
-{
-    if (objectRenderers == null || originalMaterials == null) return;
-
-    for (int i = 0; i < objectRenderers.Length; i++)
+    #region Object Manipulation
+    private void HandleObjectMovement()
     {
-        // Восстанавливаем оригинальные материалы
-        objectRenderers[i].materials = originalMaterials[i];
-        
-        // Убедимся, что все оригинальные параметры шейдера восстановлены
-        foreach (var mat in objectRenderers[i].materials)
-        {
-            mat.DisableKeyword("_ALPHABLEND_ON");
-            mat.renderQueue = -1;
-        }
-    }
-    
-    // Очищаем ссылки
-    objectRenderers = null;
-    originalMaterials = null;
-}
+        if (selectedObject == null) return;
 
-private void ResetObjectColor()
-{
-    if (objectRenderers != null && originalMaterials != null)
-    {
-        for (int i = 0; i < objectRenderers.Length; i++)
+        if (Input.GetMouseButton(0))
         {
-            if (objectRenderers[i] != null)
+            var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out var hit, raycastDistance))
             {
-                objectRenderers[i].materials = originalMaterials[i];
+                Vector3 newPos = GetSnappedPosition(hit.point);
+                newPos.y = selectedObject.transform.position.y;
+                selectedObject.transform.position = newPos;
+
+                UpdateObjectVisuals(IsPositionValid(newPos));
             }
         }
+        else if (Input.GetMouseButtonUp(0))
+        {
+            if (!IsPositionValid(selectedObject.transform.position))
+            {
+                selectedObject.transform.position = originalObjectPosition;
+            }
+            ResetSelection();
+        }
     }
-    
-    objectRenderers = null;
-    originalMaterials = null;
-}
 
-    private bool IsDirectionTileOverlap(Vector3 position)
-{
-    Collider[] directionTiles = Physics.OverlapBox(
-        position,
-        Vector3.one * (tileSize * 0.45f),
-        Quaternion.identity,
-        LayerMask.GetMask("Tools"));
+    private void HandleRotationInput()
+    {
+        if (selectedObject != null && Input.GetKeyDown(KeyCode.R))
+        {
+            RotateSelectedObject();
+        }
+    }
 
-    return directionTiles.Length > 0;
-}
+    public void RotateSelectedObject()
+    {
+        if (selectedObject == null || isRotating || ((1 << selectedObject.layer) & rotatableLayer) == 0) 
+            return;
+        
+        StartCoroutine(RotateObjectCoroutine(90f));
+    }
 
+    private IEnumerator RotateObjectCoroutine(float angle)
+    {
+        isRotating = true;
+        UpdateObjectVisuals(false, true);
+
+        Quaternion startRotation = selectedObject.transform.rotation;
+        Quaternion endRotation = startRotation * Quaternion.Euler(0, angle, 0);
+        float elapsed = 0f;
+        
+        while (elapsed < rotationDuration)
+        {
+            selectedObject.transform.rotation = Quaternion.Slerp(
+                startRotation, 
+                endRotation, 
+                elapsed / rotationDuration);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+        
+        selectedObject.transform.rotation = endRotation;
+        currentRotationIndex = (currentRotationIndex + 1) % 4;
+        UpdateRotationVisual();
+        
+        UpdateObjectVisuals(IsPositionValid(selectedObject.transform.position), false);
+        isRotating = false;
+    }
+    #endregion
+
+    #region Visual Feedback
+    private void UpdateObjectVisuals(bool isValid, bool isRotating = false)
+    {
+        if (objectRenderers == null) return;
+
+        foreach (var renderer in objectRenderers)
+        {
+            Material[] newMaterials = new Material[renderer.materials.Length];
+            for (int i = 0; i < newMaterials.Length; i++)
+            {
+                newMaterials[i] = new Material(renderer.materials[i]);
+                newMaterials[i].color = isRotating ? rotationColor : (isValid ? validColor : invalidColor);
+                SetMaterialTransparency(newMaterials[i]);
+            }
+            renderer.materials = newMaterials;
+        }
+    }
+
+    private void SetMaterialTransparency(Material mat)
+    {
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.EnableKeyword("_ALPHABLEND_ON");
+        mat.renderQueue = 3000;
+    }
+
+    private void RestoreOriginalMaterials()
+    {
+        foreach (var kvp in originalMaterials)
+        {
+            if (kvp.Key != null)
+            {
+                kvp.Key.materials = kvp.Value;
+            }
+        }
+        originalMaterials.Clear();
+    }
+
+    private void UpdateRotationVisual()
+    {
+        if (rotationIndicator != null && directionSprites != null && directionSprites.Length >= 4)
+        {
+            rotationIndicator.sprite = directionSprites[currentRotationIndex];
+        }
+    }
+
+    private void CalculateCurrentRotationIndex()
+    {
+        if (selectedObject == null) return;
+        float angle = selectedObject.transform.eulerAngles.y;
+        currentRotationIndex = Mathf.RoundToInt(angle / 90f) % 4;
+    }
+    #endregion
+
+    #region Utility Methods
     private Vector3 GetSnappedPosition(Vector3 position)
     {
         return new Vector3(
@@ -372,34 +299,24 @@ private void ResetObjectColor()
         );
     }
 
-    private (bool isValid, string errorType) CheckPositionValidity(Vector3 position)
-{
-    Vector3 checkPos = position + Vector3.up * 0.1f;
-    float checkSize = tileSize * 0.45f;
-    
-    Collider[] colliders = Physics.OverlapBox(checkPos, new Vector3(checkSize, 0.1f, checkSize));
-
-    foreach (var col in colliders)
+    private bool IsPositionValid(Vector3 position)
     {
-        if (col.gameObject == selectedObject || 
-            ((1 << col.gameObject.layer) & cubeController.groundMask) != 0)
-            continue;
+        Vector3 checkPos = position + Vector3.up * 0.1f;
+        Collider[] colliders = Physics.OverlapBox(checkPos, Vector3.one * (tileSize * 0.45f));
 
-        // Статические препятствия
-        if (((1 << col.gameObject.layer) & staticObstaclesLayer) != 0)
-            return (false, "obstacle");
+        foreach (var col in colliders)
+        {
+            if (col.gameObject == selectedObject || 
+                ((1 << col.gameObject.layer) & cubeController.groundMask) != 0)
+                continue;
 
-        // Другие перемещаемые объекты
-        if (((1 << col.gameObject.layer) & movableObjectsLayer) != 0)
-        return (false, "tool");
+            if (((1 << col.gameObject.layer) & staticObstaclesLayer) != 0)
+                return false;
+
+            if (((1 << col.gameObject.layer) & movableLayer) != 0)
+                return false;
+        }
+        return true;
     }
-
-    return (true, "valid");
-}
-
-    private void OnDestroy()
-    {
-        // При уничтожении скрипта сбрасываем подсветку
-        ResetObjectHighlight();
-    }
+    #endregion
 }
