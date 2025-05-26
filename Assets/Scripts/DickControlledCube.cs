@@ -483,4 +483,20 @@ bool ShouldSnapToGrid()
         Vector3 snappedPos = GetSnappedPosition(transform.position);
         return Vector3.Distance(snappedPos, lastGridPosition) >= halfTileSize;
     }
+
+    // Этот метод можно привязать к UI кнопке "Force Ground"
+public void ForceGroundedState()
+{
+    // Устанавливаем флаг в true
+    isGrounded = true;
+    
+    // Дополнительные действия для корректного состояния:
+    rb.freezeRotation = true;
+    rb.useGravity = false;
+    
+    // Принудительно снэпаем к сетке, если нужно
+    SnapToGrid();
+    
+    Debug.Log("Forced grounded state: TRUE");
+}
 }
