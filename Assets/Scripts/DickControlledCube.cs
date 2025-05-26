@@ -313,7 +313,6 @@ public void ForceUpdateDirection(Vector3 newDirection)
         else
         {
             rb.linearVelocity = Vector3.zero;
-            StartCoroutine(RotateOnCollision());
         }
     }
 

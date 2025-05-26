@@ -1,76 +1,124 @@
 using UnityEngine;
-using System.Collections; // Добавлена эта строка
+using System.Collections;
 
 [RequireComponent(typeof(Rigidbody), typeof(MeshRenderer))]
 public class CollisionColorChanger : MonoBehaviour
 {
     [Header("Collision Settings")]
-    [Tooltip("Тег объектов, при столкновении с которыми куб реагирует")]
-    public string obstacleTag = "Obstacle";
-    
-    [Tooltip("Цвет куба при столкновении")]
+    public LayerMask collisionLayer;
     public Color collisionColor = Color.red;
-    
-    [Tooltip("Время в секундах до возврата исходного цвета")]
     public float colorResetDelay = 2f;
 
+    [Header("Debug")]
+    public bool debugMode = true;
+    public float debugRayDuration = 2f;
+
     private MeshRenderer meshRenderer;
+    private Rigidbody rb;
     private Color originalColor;
     private bool isInCollisionState = false;
+    private MaterialPropertyBlock materialPropertyBlock;
 
     void Start()
     {
         meshRenderer = GetComponent<MeshRenderer>();
+        rb = GetComponent<Rigidbody>();
+        
+        // Инициализация MaterialPropertyBlock для безопасного изменения цвета
+        materialPropertyBlock = new MaterialPropertyBlock();
+        meshRenderer.GetPropertyBlock(materialPropertyBlock);
         originalColor = meshRenderer.material.color;
+
+        if (debugMode)
+            Debug.Log($"CollisionColorChanger initialized on {gameObject.name}. Original color: {originalColor}", this);
     }
 
     void OnCollisionEnter(Collision collision)
     {
-        if (!isInCollisionState && collision.gameObject.CompareTag(obstacleTag))
+        if (!isInCollisionState && IsValidCollision(collision.gameObject))
         {
-            StartCollisionEffect();
+            ProcessCollision(collision);
         }
     }
-    public void ForceReset()
-{
-    StopAllCoroutines();
-    meshRenderer.material.color = originalColor;
-    isInCollisionState = false;
-}
 
-void OnDisable()
-{
-    ForceReset();
-}
-
-    private void StartCollisionEffect()
+    private bool IsValidCollision(GameObject otherObject)
     {
+        bool layerMatches = (collisionLayer.value & (1 << otherObject.layer)) != 0;
+        
+        if (debugMode)
+        {
+            Debug.Log($"Collision with {otherObject.name} (Layer: {LayerMask.LayerToName(otherObject.layer)})");
+            Debug.Log($"Layer match: {layerMatches}");
+        }
+
+        return layerMatches;
+    }
+
+    private void ProcessCollision(Collision collision)
+    {
+        if (debugMode)
+        {
+            Debug.Log($"Processing valid collision with {collision.gameObject.name}", collision.gameObject);
+            Debug.DrawRay(collision.contacts[0].point, collision.contacts[0].normal * 2, Color.yellow, debugRayDuration);
+        }
+
+        // Остановка физического движения
+        StopMovement();
+
+        // Изменение цвета с использованием MaterialPropertyBlock
+        SetCollisionColor(collisionColor);
         isInCollisionState = true;
-        meshRenderer.material.color = collisionColor;
-        Invoke("ResetCollisionEffect", colorResetDelay);
-        
-        // Альтернативный вариант с плавным изменением:
-        // StartCoroutine(SmoothColorTransition(collisionColor, 0.5f));
+
+        // Запуск таймера сброса
+        StartCoroutine(ResetAfterDelay());
     }
 
-    public void ResetCollisionEffect() // Изменено на public
-{
-    meshRenderer.material.color = originalColor;
-    isInCollisionState = false;
-}
-
-    private IEnumerator SmoothColorTransition(Color targetColor, float duration)
+    private void StopMovement()
     {
-        Color startColor = meshRenderer.material.color;
-        float elapsed = 0f;
-        
-        while (elapsed < duration)
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        if (debugMode) Debug.Log("Movement stopped");
+    }
+
+    private void SetCollisionColor(Color color)
+    {
+        materialPropertyBlock.SetColor("_Color", color);
+        meshRenderer.SetPropertyBlock(materialPropertyBlock);
+        if (debugMode) Debug.Log($"Color changed to {color}");
+    }
+
+    private void ResetColor()
+    {
+        materialPropertyBlock.SetColor("_Color", originalColor);
+        meshRenderer.SetPropertyBlock(materialPropertyBlock);
+        isInCollisionState = false;
+        if (debugMode) Debug.Log("Color reset to original");
+    }
+
+    IEnumerator ResetAfterDelay()
+    {
+        yield return new WaitForSeconds(colorResetDelay);
+        ResetCollisionEffect();
+    }
+
+    public void ResetCollisionEffect()
+    {
+        ResetColor();
+    }
+
+    void OnDisable()
+    {
+        StopAllCoroutines();
+        ResetColor();
+    }
+
+    public void TestColorChange()
+    {
+        if (!isInCollisionState)
         {
-            meshRenderer.material.color = Color.Lerp(startColor, targetColor, elapsed / duration);
-            elapsed += Time.deltaTime;
-            yield return null;
+            SetCollisionColor(collisionColor);
+            isInCollisionState = true;
+            StartCoroutine(ResetAfterDelay());
         }
-        
-        meshRenderer.material.color = targetColor;
     }
 }
