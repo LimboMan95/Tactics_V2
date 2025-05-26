@@ -115,7 +115,7 @@ private void Update()
 
     private void StartDragging()
     {
-        if (selectedObject == null) return;
+        if (!isInEditMode || selectedObject == null) return;
         
         isDragging = true;
         isPermanentlySelected = false;
@@ -206,6 +206,7 @@ private void Update()
     #region Object Selection
     private void HandleObjectSelection()
 {
+    if (!isInEditMode) return; // Добавлено
     if (Input.GetMouseButtonDown(0))
     {
         var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
@@ -326,7 +327,7 @@ private void Update()
     RotateSelectedObject();
 }
 
-     public void RotateSelectedObject()
+    public void RotateSelectedObject()
 {
     if (!isInEditMode || selectedObject == null || isRotating || ((1 << selectedObject.layer) & rotatableLayer) == 0) 
         return;
@@ -446,4 +447,42 @@ private void Update()
         return true;
     }
     #endregion
+
+    public void ForceEnableEditMode()
+{
+    // Если уже в режиме редактирования - ничего не делаем
+    if (isInEditMode) return;
+    
+    // Принудительно включаем режим редактирования
+    isInEditMode = true;
+    
+    // Дополнительные действия при включении
+    Debug.Log("Edit mode FORCED ON");
+    
+    // Сбрасываем выделение при включении
+    ResetSelection();
+}
+
+// Этот метод будет привязан к кнопке "Выключить редактирование"
+public void ForceDisableEditMode()
+{
+    // Если уже не в режиме редактирования - ничего не делаем
+    if (!isInEditMode) return;
+    
+    // Принудительно выключаем режим редактирования
+    isInEditMode = false;
+    
+    // Дополнительные действия при выключении
+    Debug.Log("Edit mode FORCED OFF");
+    
+    // Сбрасываем выделение при выключении
+    ResetSelection();
+    
+    // Если объект был в процессе перетаскивания - возвращаем на место
+    if (selectedObject != null && isDragging)
+    {
+        selectedObject.transform.position = originalObjectPosition;
+        isDragging = false;
+    }
+}
 }
