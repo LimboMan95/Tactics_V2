@@ -24,6 +24,11 @@ public class DickControlledCube : MonoBehaviour
     public float snapThreshold = 0.5f;
     public Color tileHighlightColor = Color.cyan;
     public float highlightDuration = 0.5f;
+     // Добавляем новые настройки цвета
+    [Header("Collision Settings")]
+    public Color collisionColor = Color.red;
+    public float colorResetDelay = 0.5f;
+    public LayerMask collisionLayers;
 
     [Header("References")]
     public Transform mainPointer;
@@ -52,6 +57,9 @@ public class DickControlledCube : MonoBehaviour
     public Vector3 InitialPosition => initialPosition;
 public Rigidbody RB => rb;
 public bool IsMovementEnabled => movementEnabled;
+ private MaterialPropertyBlock materialBlock;
+    private Color originalColor;
+    private bool isColliding;
 
     void Awake()
     {
@@ -84,6 +92,10 @@ public bool IsMovementEnabled => movementEnabled;
         isGrounded = CheckGround();
         halfTileSize = tileSize / 2f;
         Debug.Log($"Rigidbody: isKinematic={rb.isKinematic}, UseGravity={rb.useGravity}, Drag={rb.linearDamping}");
+
+         materialBlock = new MaterialPropertyBlock();
+        GetComponent<MeshRenderer>().GetPropertyBlock(materialBlock);
+        originalColor = GetComponent<MeshRenderer>().material.color;
     }
 
     void Update()
@@ -197,7 +209,7 @@ public void SetRotatingState(bool state) {
         Debug.Log($"Movement {(movementEnabled ? "ENABLED" : "DISABLED")}");
     }
     
-   public void DisableMovement()
+  public void DisableMovement()
 {
     movementEnabled = false;
     
@@ -306,14 +318,65 @@ public void ForceUpdateDirection(Vector3 newDirection)
             SnapToGrid();
         }
 
-        if (!Physics.Raycast(transform.position, currentDirection, checkDistance, obstacleMask))
+        bool hasObstacle = Physics.Raycast(
+            transform.position, 
+            currentDirection, 
+            checkDistance, 
+            collisionLayers);
+
+        if (hasObstacle)
         {
-            rb.linearVelocity = currentDirection * speed;
+            if (!isColliding)
+            {
+                StartCollision();
+            }
+            rb.linearVelocity = Vector3.zero;
         }
         else
         {
-            rb.linearVelocity = Vector3.zero;
+            if (isColliding)
+            {
+                EndCollision();
+            }
+            rb.linearVelocity = currentDirection * speed;
         }
+    }
+
+     void StartCollision()
+    {
+        isColliding = true;
+        SetColor(collisionColor);
+        DisableMovement();
+        // Если нужно автоматическое восстановление цвета
+        if (colorResetDelay > 0)
+        {
+            Invoke("EndCollision", colorResetDelay);
+        }
+    }
+
+    void EndCollision()
+    {
+        if (!isColliding) return;
+        
+        isColliding = false;
+        SetColor(originalColor);
+    }
+
+    void SetColor(Color color)
+{
+    var renderer = GetComponent<MeshRenderer>();
+    renderer.GetPropertyBlock(materialBlock);
+    materialBlock.SetColor("_BaseColor", color); // Для URP/HDRP
+    materialBlock.SetColor("_Color", color);    // Для стандартного шейдера
+    renderer.SetPropertyBlock(materialBlock);
+    
+    Debug.Log($"Color set to: {color}"); // Добавьте этот лог
+}
+
+    void OnDisable()
+    {
+        CancelInvoke(); // Отменяем все запланированные вызовы
+        EndCollision(); // Восстанавливаем цвет
     }
 
 // Новый вспомогательный метод для проверки тайлов

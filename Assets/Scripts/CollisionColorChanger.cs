@@ -1,101 +1,84 @@
 using UnityEngine;
 using System.Collections;
 
+
 [RequireComponent(typeof(Rigidbody), typeof(MeshRenderer))]
 public class CollisionColorChanger : MonoBehaviour
 {
-    [Header("Collision Settings")]
+    [Header("Settings")]
     public LayerMask collisionLayer;
     public Color collisionColor = Color.red;
     public float colorResetDelay = 2f;
+    public float raycastDistance = 1f;
 
     [Header("Debug")]
     public bool debugMode = true;
-    public float debugRayDuration = 2f;
 
     private MeshRenderer meshRenderer;
     private Rigidbody rb;
     private Color originalColor;
+    private MaterialPropertyBlock propBlock;
     private bool isInCollisionState = false;
-    private MaterialPropertyBlock materialPropertyBlock;
 
     void Start()
     {
         meshRenderer = GetComponent<MeshRenderer>();
         rb = GetComponent<Rigidbody>();
         
-        // Инициализация MaterialPropertyBlock для безопасного изменения цвета
-        materialPropertyBlock = new MaterialPropertyBlock();
-        meshRenderer.GetPropertyBlock(materialPropertyBlock);
+        propBlock = new MaterialPropertyBlock();
+        meshRenderer.GetPropertyBlock(propBlock);
         originalColor = meshRenderer.material.color;
 
         if (debugMode)
-            Debug.Log($"CollisionColorChanger initialized on {gameObject.name}. Original color: {originalColor}", this);
+            Debug.Log("CollisionColorChanger initialized");
     }
 
-    void OnCollisionEnter(Collision collision)
+    void FixedUpdate()
     {
-        if (!isInCollisionState && IsValidCollision(collision.gameObject))
+        // Проверяем столкновения через raycast в FixedUpdate
+        if (!isInCollisionState && Physics.Raycast(
+            transform.position, 
+            GetComponent<DickControlledCube>().currentDirection, 
+            raycastDistance, 
+            collisionLayer))
         {
-            ProcessCollision(collision);
+            ProcessCollision();
         }
     }
 
-    private bool IsValidCollision(GameObject otherObject)
+    public void ProcessCollision()
     {
-        bool layerMatches = (collisionLayer.value & (1 << otherObject.layer)) != 0;
-        
+        if (isInCollisionState) return;
+
         if (debugMode)
-        {
-            Debug.Log($"Collision with {otherObject.name} (Layer: {LayerMask.LayerToName(otherObject.layer)})");
-            Debug.Log($"Layer match: {layerMatches}");
-        }
+            Debug.Log("Collision detected via raycast");
 
-        return layerMatches;
-    }
-
-    private void ProcessCollision(Collision collision)
-    {
-        if (debugMode)
-        {
-            Debug.Log($"Processing valid collision with {collision.gameObject.name}", collision.gameObject);
-            Debug.DrawRay(collision.contacts[0].point, collision.contacts[0].normal * 2, Color.yellow, debugRayDuration);
-        }
-
-        // Остановка физического движения
         StopMovement();
-
-        // Изменение цвета с использованием MaterialPropertyBlock
         SetCollisionColor(collisionColor);
         isInCollisionState = true;
-
-        // Запуск таймера сброса
         StartCoroutine(ResetAfterDelay());
     }
 
     private void StopMovement()
     {
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        if (debugMode) Debug.Log("Movement stopped");
+        if (TryGetComponent<DickControlledCube>(out var controller))
+        {
+            controller.DisableMovement();
+        }
+        else
+        {
+            rb.linearVelocity = Vector3.zero;
+        }
     }
 
     private void SetCollisionColor(Color color)
     {
-        materialPropertyBlock.SetColor("_Color", color);
-        meshRenderer.SetPropertyBlock(materialPropertyBlock);
-        if (debugMode) Debug.Log($"Color changed to {color}");
+        meshRenderer.GetPropertyBlock(propBlock);
+        propBlock.SetColor("_Color", color);
+        meshRenderer.SetPropertyBlock(propBlock);
     }
 
-    private void ResetColor()
-    {
-        materialPropertyBlock.SetColor("_Color", originalColor);
-        meshRenderer.SetPropertyBlock(materialPropertyBlock);
-        isInCollisionState = false;
-        if (debugMode) Debug.Log("Color reset to original");
-    }
-
-    IEnumerator ResetAfterDelay()
+    private IEnumerator ResetAfterDelay()
     {
         yield return new WaitForSeconds(colorResetDelay);
         ResetCollisionEffect();
@@ -103,22 +86,26 @@ public class CollisionColorChanger : MonoBehaviour
 
     public void ResetCollisionEffect()
     {
-        ResetColor();
+        SetCollisionColor(originalColor);
+        isInCollisionState = false;
     }
 
     void OnDisable()
     {
         StopAllCoroutines();
-        ResetColor();
+        ResetCollisionEffect();
     }
 
-    public void TestColorChange()
+    // Для визуализации raycast в редакторе
+    void OnDrawGizmosSelected()
     {
-        if (!isInCollisionState)
+        if (!Application.isPlaying || !debugMode) return;
+        
+        var cube = GetComponent<DickControlledCube>();
+        if (cube != null)
         {
-            SetCollisionColor(collisionColor);
-            isInCollisionState = true;
-            StartCoroutine(ResetAfterDelay());
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawRay(transform.position, cube.currentDirection * raycastDistance);
         }
     }
 }
