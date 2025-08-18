@@ -29,6 +29,12 @@ public class DickControlledCube : MonoBehaviour
     public Color collisionColor = Color.red;
     public float colorResetDelay = 0.5f;
     public LayerMask collisionLayers;
+     [Header("Level Completion")]
+    public LayerMask levelCompleteLayer; // Слой для триггера завершения уровня
+    public GameObject levelCompleteUI; // Ссылка на UI окно завершения уровня
+     public float levelCompleteDelay = 1f; // Задержка перед показом UI
+    public float triggerCenterThreshold = 0.5f; // Порог центра клетки (0.5 = середина)
+
 
     [Header("References")]
     public Transform mainPointer;
@@ -60,6 +66,8 @@ public bool IsMovementEnabled => movementEnabled;
  private MaterialPropertyBlock materialBlock;
     private Color originalColor;
     private bool isColliding;
+     private GameObject currentFinishTrigger; // Текущий триггер финиша
+    private Vector3 triggerEntryPoint; // Точка входа в триггер
 
     void Awake()
     {
@@ -178,6 +186,13 @@ public void SetRotatingState(bool state) {
 //}
 
  void OnTriggerEnter(Collider other) {
+      if (((1 << other.gameObject.layer) & levelCompleteLayer) != 0)
+        {
+            currentFinishTrigger = other.gameObject;
+            triggerEntryPoint = transform.position;
+            return;
+        }
+    
     if (!other.CompareTag(directionTileTag)) return;
     
     lastDirectionTile = other.gameObject;
@@ -186,6 +201,38 @@ public void SetRotatingState(bool state) {
     // Убрали немедленный поворот!
 }
 
+ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
+    {
+        // Останавливаем куб
+        DisableMovement();
+        
+        // Уничтожаем флажок (триггер)
+        Destroy(finishTrigger);
+        currentFinishTrigger = null;
+        
+        // Ждем указанное время
+        yield return new WaitForSeconds(levelCompleteDelay);
+        
+        // Показываем UI
+        if (levelCompleteUI != null)
+        {
+            levelCompleteUI.SetActive(true);
+        }
+        
+        Debug.Log("Level completed! Flag collected.");
+    }
+
+     void OnTriggerStay(Collider other)
+    {
+        if (currentFinishTrigger != null && other.gameObject == currentFinishTrigger)
+        {
+            // Проверяем, достигли ли центра триггера
+            if (HasReachedTriggerCenter(other))
+            {
+                StartCoroutine(CompleteLevelWithDelay(other.gameObject));
+            }
+        }
+    }
     void OnTriggerExit(Collider other)
     {
         if (other.CompareTag(directionTileTag))
@@ -193,7 +240,23 @@ public void SetRotatingState(bool state) {
             isOnDirectionTile = false;
             lastDirectionTile = null;
         }
+         if (other.gameObject == currentFinishTrigger)
+        {
+            currentFinishTrigger = null;
+        }
     }
+
+    bool HasReachedTriggerCenter(Collider trigger)
+    {
+        // Рассчитываем относительную позицию куба в триггере
+        Vector3 localPos = trigger.transform.InverseTransformPoint(transform.position);
+        
+        // Проверяем по всем осям (можно настроить отдельно для X и Z)
+        return Mathf.Abs(localPos.x) <= triggerCenterThreshold && 
+               Mathf.Abs(localPos.z) <= triggerCenterThreshold;
+    }
+
+
  void UpdateVisualPointers()
     {
         if (visualPointer == null || mainPointer == null) return;
