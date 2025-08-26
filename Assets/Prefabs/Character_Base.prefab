@@ -67,7 +67,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 6d218cef6721b824bbe2485cdbdc86bd, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -151,13 +151,40 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 13f5ce77f2ad9aa4f93f33747175559a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 5
+  speed: 5
+  rotationSpeed: 10
   obstacleMask:
     serializedVersion: 2
     m_Bits: 0
-  raycastDistance: 1
-  directionPointer: {fileID: 1252017747887937824}
-  pointerDistance: 0.7
+  checkDistance: 1
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 0
+  groundCheckDistance: 0.5
+  cubeSize: 1
+  directionTileTag: DirectionTile
+  tileActivationDelay: 0.3
+  tileSize: 1
+  snapThreshold: 0.5
+  tileHighlightColor: {r: 0, g: 1, b: 1, a: 1}
+  highlightDuration: 0.5
+  collisionColor: {r: 1, g: 0, b: 0, a: 1}
+  colorResetDelay: 0.5
+  collisionLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  levelCompleteLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  levelCompleteUI: {fileID: 0}
+  levelCompleteDelay: 1
+  triggerCenterThreshold: 0.5
+  mainPointer: {fileID: 0}
+  visualPointer: {fileID: 0}
+  movementEnabled: 1
+  currentDirection: {x: 0, y: 0, z: 1}
+  isRotating: 0
+  isGrounded: 1
 --- !u!1 &2962510760688289097
 GameObject:
   m_ObjectHideFlags: 0
