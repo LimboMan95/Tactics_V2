@@ -429,6 +429,11 @@ private void Update()
 
     private bool IsPositionValid(Vector3 position)
     {
+         if (!Physics.Raycast(position + Vector3.up * 0.5f, Vector3.down, 1f, cubeController.groundMask))
+    {
+        return false; // Нет земли под объектом
+    }
+        
         Vector3 checkPos = position + Vector3.up * 0.1f;
         Collider[] colliders = Physics.OverlapBox(checkPos, Vector3.one * (tileSize * 0.45f));
 

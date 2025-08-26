@@ -7956,7 +7956,7 @@ MonoBehaviour:
     m_Bits: 128
   staticObstaclesLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 8
   editModeKey: 101
   cancelKey: 27
   startInEditMode: 1
