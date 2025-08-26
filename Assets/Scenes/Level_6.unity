@@ -8174,7 +8174,7 @@ MonoBehaviour:
     m_Bits: 128
   staticObstaclesLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 265
   editModeKey: 101
   cancelKey: 27
   startInEditMode: 1
@@ -17908,7 +17908,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7276718765772469012, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -3.6421366
+      value: -4.6421366
       objectReference: {fileID: 0}
     - target: {fileID: 7276718765772469012, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: m_LocalRotation.w
