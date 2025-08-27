@@ -39,7 +39,7 @@ public class GridObjectMover : MonoBehaviour
     private Vector3 originalObjectPosition;
     private int currentRotationIndex;
     private bool isRotating;
-    private bool isInEditMode;
+    public bool isInEditMode;
     private Renderer[] objectRenderers;
     private Dictionary<Renderer, Material[]> originalMaterials = new Dictionary<Renderer, Material[]>();
     private enum SelectionMode { None, Clicked, Dragging }
@@ -63,29 +63,23 @@ public class GridObjectMover : MonoBehaviour
     }
 private void Update()
 {
-    HandleEditModeToggle();
+     HandleEditModeToggle();
+    
     if (isInEditMode)
     {
-        // Убираем дублирующий HandleSelection
-        HandleObjectSelection(); // Теперь используем только этот метод
+        HandleObjectSelection();
         HandleObjectMovement();
         HandleRotationInput();
-    }
-    
-    if (Input.GetMouseButtonDown(0))
-    {
-        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-        if (Physics.Raycast(ray, out var hit, 100))
+        
+        // Простая проверка валидности для выбранного объекта
+        if (selectedObject != null && !isDragging && !isRotating)
         {
-            Debug.Log($"Попал в: {hit.collider.name}", hit.collider.gameObject);
+            bool isValid = IsPositionValid(selectedObject.transform.position);
+            UpdateObjectVisuals(isValid);
         }
-        else
-        {
-            Debug.Log("Не попал ни во что");
-        }
-
     }
      }
+
 
    #region Selection System
 
@@ -177,10 +171,16 @@ private void Update()
     }
 
     public void ToggleEditMode()
+{
+    if (isInEditMode) 
     {
-        if (isInEditMode) StopEditMode();
-        else if (CanEnterEditMode()) StartEditMode();
+        StopEditMode(); // Полный сброс при выходе
     }
+    else if (CanEnterEditMode()) 
+    {
+        StartEditMode();
+    }
+}
 
     private bool CanEnterEditMode()
     {
@@ -196,11 +196,28 @@ private void Update()
     }
 
     private void StopEditMode()
+{
+    // Принудительно завершаем все операции и сбрасываем состояние
+    if (isDragging && selectedObject != null)
     {
-        ResetSelection();
-        isInEditMode = false;
-        Debug.Log("Edit mode deactivated");
+        // Возвращаем объект на исходную позицию если был в процессе перетаскивания
+        selectedObject.transform.position = originalObjectPosition;
     }
+    
+    // Сбрасываем все визуальные эффекты
+    ResetSelection();
+    
+    // Сбрасываем все флаги состояния
+    isDragging = false;
+    isRotating = false;
+    isPermanentlySelected = false;
+    currentSelectionMode = SelectionMode.None;
+    
+    // Выключаем режим редактирования
+    isInEditMode = false;
+    
+    Debug.Log("Edit mode deactivated - full reset");
+}
     #endregion
 
     #region Object Selection
@@ -231,61 +248,75 @@ private void Update()
     }
 }
 
-   private void SelectObject(GameObject obj)
+  private void SelectObject(GameObject obj)
 {
-    if (obj == null)
+    if (obj == null) return;
+
+    // Сначала сбрасываем предыдущий выбор
+    if (selectedObject != null && selectedObject != obj)
     {
-        Debug.LogError("SelectObject: obj is null!");
+        ResetSelection();
+    }
+
+    selectedObject = obj;
+    originalObjectPosition = obj.transform.position;
+
+    // Получаем рендереры
+    objectRenderers = obj.GetComponentsInChildren<Renderer>();
+    if (objectRenderers == null || objectRenderers.Length == 0)
+    {
+        Debug.LogWarning($"No renderers found on {obj.name}");
         return;
     }
 
-    try
+    // Сохраняем КОПИИ оригинальных материалов
+    originalMaterials.Clear();
+    foreach (var renderer in objectRenderers)
     {
-        selectedObject = obj;
-        originalObjectPosition = obj.transform.position;
-        Debug.Log($"Выбран: {obj.name}");
-
-        // Проверка рендереров
-        objectRenderers = obj.GetComponentsInChildren<Renderer>();
-        Debug.Log($"Найдено рендереров: {objectRenderers.Length}");
+        if (renderer == null) continue;
         
-        originalMaterials.Clear();
-        foreach (var renderer in objectRenderers)
+        Material[] materialsCopy = new Material[renderer.materials.Length];
+        for (int i = 0; i < renderer.materials.Length; i++)
         {
-            if (renderer == null) continue;
-            originalMaterials[renderer] = renderer.materials;
+            materialsCopy[i] = new Material(renderer.materials[i]); // Копируем материал
         }
-
-        // Проверка вращения
-        bool isRotatable = ((1 << obj.layer) & rotatableLayer) != 0;
-        Debug.Log($"isRotatable: {isRotatable}");
-        
-        UpdateUIState(isRotatable);
-        
-        if (isRotatable)
-        {
-            CalculateCurrentRotationIndex();
-            UpdateRotationVisual();
-        }
-
-        UpdateObjectVisuals(true);
+        originalMaterials[renderer] = materialsCopy;
     }
-    catch (System.Exception e)
+
+    // Обновляем визуал с ПРАВИЛЬНОЙ проверкой
+    bool isValid = IsPositionValid(obj.transform.position);
+    UpdateObjectVisuals(isValid);
+
+    // Обновляем UI для поворотных объектов
+    bool isRotatable = ((1 << obj.layer) & rotatableLayer) != 0;
+    UpdateUIState(isRotatable);
+    
+    if (isRotatable)
     {
-        Debug.LogError($"Ошибка в SelectObject: {e}");
+        CalculateCurrentRotationIndex();
+        UpdateRotationVisual();
     }
+
+    Debug.Log($"Selected: {obj.name}, valid: {isValid}, rotatable: {isRotatable}");
 }
 
-    private void ResetSelection()
-    {
-        if (isDragging) return;
-
-        RestoreOriginalMaterials();
-        UpdateUIState(false);
-        selectedObject = null;
-        isPermanentlySelected = false;
-        isDragging = false;
-    }
+   private void ResetSelection()
+{
+    // Восстанавливаем оригинальные материалы ВСЕГДА, независимо от состояния
+    RestoreOriginalMaterials();
+    
+    // Отключаем UI
+    UpdateUIState(false);
+    
+    // Сбрасываем все ссылки и флаги
+    selectedObject = null;
+    objectRenderers = null;
+    isPermanentlySelected = false;
+    isDragging = false;
+    currentSelectionMode = SelectionMode.None;
+    
+    Debug.Log("Selection reset complete");
+}
     #endregion
 
     #region Object Manipulation
@@ -365,21 +396,29 @@ private void Update()
 
     #region Visual Feedback
     private void UpdateObjectVisuals(bool isValid, bool isRotating = false)
+{
+    if (objectRenderers == null)
     {
-        if (objectRenderers == null) return;
-
-        foreach (var renderer in objectRenderers)
-        {
-            Material[] newMaterials = new Material[renderer.materials.Length];
-            for (int i = 0; i < newMaterials.Length; i++)
-            {
-                newMaterials[i] = new Material(renderer.materials[i]);
-                newMaterials[i].color = isRotating ? rotationColor : (isValid ? validColor : invalidColor);
-                SetMaterialTransparency(newMaterials[i]);
-            }
-            renderer.materials = newMaterials;
-        }
+        Debug.LogWarning("objectRenderers is null!");
+        return;
     }
+
+    Debug.Log($"Updating visuals: isValid={isValid}, isRotating={isRotating}");
+
+    foreach (var renderer in objectRenderers)
+    {
+        if (renderer == null) continue;
+        
+        Material[] newMaterials = new Material[renderer.materials.Length];
+        for (int i = 0; i < newMaterials.Length; i++)
+        {
+            newMaterials[i] = new Material(renderer.materials[i]);
+            newMaterials[i].color = isRotating ? rotationColor : (isValid ? validColor : invalidColor);
+            SetMaterialTransparency(newMaterials[i]);
+        }
+        renderer.materials = newMaterials;
+    }
+}
 
     private void SetMaterialTransparency(Material mat)
     {
@@ -390,16 +429,26 @@ private void Update()
     }
 
     private void RestoreOriginalMaterials()
+{
+    foreach (var kvp in originalMaterials)
     {
-        foreach (var kvp in originalMaterials)
+        if (kvp.Key != null && kvp.Value != null)
         {
-            if (kvp.Key != null)
+            // Уничтожаем все текущие материалы (кроме оригинальных)
+            foreach (var currentMat in kvp.Key.materials)
             {
-                kvp.Key.materials = kvp.Value;
+                if (currentMat != null && !System.Array.Exists(kvp.Value, m => m == currentMat))
+                {
+                    Destroy(currentMat);
+                }
             }
+            
+            // Восстанавливаем оригинальные материалы
+            kvp.Key.materials = kvp.Value;
         }
-        originalMaterials.Clear();
     }
+    originalMaterials.Clear();
+}
 
     private void UpdateRotationVisual()
     {
@@ -471,23 +520,11 @@ private void Update()
 // Этот метод будет привязан к кнопке "Выключить редактирование"
 public void ForceDisableEditMode()
 {
-    // Если уже не в режиме редактирования - ничего не делаем
     if (!isInEditMode) return;
     
-    // Принудительно выключаем режим редактирования
-    isInEditMode = false;
+    // Используем наш улучшенный StopEditMode
+    StopEditMode();
     
-    // Дополнительные действия при выключении
-    Debug.Log("Edit mode FORCED OFF");
-    
-    // Сбрасываем выделение при выключении
-    ResetSelection();
-    
-    // Если объект был в процессе перетаскивания - возвращаем на место
-    if (selectedObject != null && isDragging)
-    {
-        selectedObject.transform.position = originalObjectPosition;
-        isDragging = false;
-    }
+    Debug.Log("Edit mode FORCED OFF with full cleanup");
 }
 }

@@ -68,6 +68,7 @@ public bool IsMovementEnabled => movementEnabled;
     private bool isColliding;
      private GameObject currentFinishTrigger; // Текущий триггер финиша
     private Vector3 triggerEntryPoint; // Точка входа в триггер
+    private GridObjectMover editModeChecker;
 
     void Awake()
     {
@@ -77,6 +78,8 @@ public bool IsMovementEnabled => movementEnabled;
 
     void Start()
     {
+        
+        editModeChecker = FindAnyObjectByType<GridObjectMover>();
         if(mainPointer != null && currentDirection == Vector3.zero)
         {
             currentDirection = mainPointer.forward;
@@ -123,41 +126,42 @@ public void SetRotatingState(bool state) {
 }
 
     void FixedUpdate()
+{
+    UpdateVisualPointers();
+    PeriodicGroundCheck();
+    
+    // ← ВАЖНО: Полностью отключаем ВСЮ логику тайлов в режиме редактирования
+    bool shouldProcessTiles = editModeChecker == null || !editModeChecker.isInEditMode;
+    
+    if (shouldProcessTiles)
     {
-        UpdateVisualPointers();
-        PeriodicGroundCheck();
-
-        // 1. Обработка тайлов направления
+        // Вся логика тайлов ТОЛЬКО в игровом режиме
         CheckDirectionTileUnderneath();
         
-        // 2. Поворот при прохождении половины тайла
-        if (isOnDirectionTile && !isRotating && lastDirectionTile != null) {
-        // Вычисляем пройденное расстояние по направлению движения
-        float distance = Vector3.Dot(transform.position - tileEntryPoint, currentDirection);
-        
-        // Поворачиваем только после прохождения половины тайла
-        if (distance >= tileSize * 0.5f) { // tileSize - размер тайла
-            Vector3 tileDirection = lastDirectionTile.transform.forward;
-            if (Vector3.Angle(currentDirection, tileDirection) > 5f) {
-                StartCoroutine(RotateToDirection(tileDirection));
-                isOnDirectionTile = false; // Предотвращаем повторный поворот
+        if (isOnDirectionTile && !isRotating && lastDirectionTile != null) 
+        {
+            float distance = Vector3.Dot(transform.position - tileEntryPoint, currentDirection);
+            if (distance >= tileSize * 0.5f)
+            {
+                Vector3 tileDirection = lastDirectionTile.transform.forward;
+                if (Vector3.Angle(currentDirection, tileDirection) > 5f)
+                {
+                    StartCoroutine(RotateToDirection(tileDirection));
+                    isOnDirectionTile = false;
+                }
             }
         }
     }
-
-        // 3. Основное движение
-        if (movementEnabled && !isRotating) {
-        if (isGrounded) {
+    
+    // Основное движение работает всегда
+    if (movementEnabled && !isRotating)
+    {
+        if (isGrounded)
+        {
             HandleMovement();
         }
-        else if (!movementEnabled)
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-        } 
-        }
-         Debug.Log($"Movement: enabled={movementEnabled}, rotating={isRotating}, grounded={isGrounded}");
     }
+}
 
 
 //void HandleMovementState()
@@ -186,6 +190,8 @@ public void SetRotatingState(bool state) {
 //}
 
  void OnTriggerEnter(Collider other) {
+      
+      if (editModeChecker != null && editModeChecker.isInEditMode) return;
       if (((1 << other.gameObject.layer) & levelCompleteLayer) != 0)
         {
             currentFinishTrigger = other.gameObject;
@@ -224,7 +230,8 @@ public void SetRotatingState(bool state) {
 
      void OnTriggerStay(Collider other)
     {
-        if (currentFinishTrigger != null && other.gameObject == currentFinishTrigger)
+        if (editModeChecker != null && editModeChecker.isInEditMode) return;
+       if (currentFinishTrigger != null && other.gameObject == currentFinishTrigger)
         {
             // Проверяем, достигли ли центра триггера
             if (HasReachedTriggerCenter(other))
@@ -235,6 +242,7 @@ public void SetRotatingState(bool state) {
     }
     void OnTriggerExit(Collider other)
     {
+        if (editModeChecker != null && editModeChecker.isInEditMode) return;
         if (other.CompareTag(directionTileTag))
         {
             isOnDirectionTile = false;
@@ -446,6 +454,8 @@ public void ForceUpdateDirection(Vector3 newDirection)
 private bool CheckDirectionTileUnderneath(out Vector3 tileDirection)
 {
     tileDirection = Vector3.zero;
+     // Не подсвечиваем тайлы в режиме редактирования
+    if (editModeChecker != null && editModeChecker.isInEditMode) return false;
     if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
     {
         if (hit.collider.CompareTag(directionTileTag))
