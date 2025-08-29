@@ -331,6 +331,57 @@ public void Revive()
     
     isGrounded = CheckGround();
 }
+
+public void StopGame()
+{
+    // Останавливаем движение
+    DisableMovement();
+    
+    // Сбрасываем физику
+    ResetPhysics();
+    
+    // Сбрасываем цвета тайлов
+    ResetAllTileColors();
+    
+    Debug.Log("Игра остановлена");
+}
+
+public void ResetAllTileColors()
+{
+    // Отменяем запланированный сброс если он есть
+    CancelInvoke(nameof(ResetLastTileColor));
+    
+    // Сбрасываем последний подсвеченный тайл
+    if (lastHighlightedTile != null)
+    {
+        ResetTileColor(lastHighlightedTile);
+        lastHighlightedTile = null;
+    }
+    
+    // Дополнительно: сбрасываем ВСЕ тайлы на сцене
+    GameObject[] allTiles = GameObject.FindGameObjectsWithTag(directionTileTag);
+    foreach (GameObject tile in allTiles)
+    {
+        Renderer renderer = tile.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            // Просто красим в стандартный цвет
+            renderer.material.color = Color.white;
+        }
+    }
+    
+    Debug.Log("Все тайлы сброшены");
+}
+
+public void OnStopGameClick()
+{
+    DickControlledCube cube = FindObjectOfType<DickControlledCube>();
+    if (cube != null)
+    {
+        cube.StopGame();
+    }
+}
+
 public void FullReset() {
     StopAllCoroutines();
     isRotating = false;

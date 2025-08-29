@@ -32,6 +32,9 @@ public class GridObjectMover : MonoBehaviour
     public Color validColor = new Color(0.2f, 1f, 0.2f, 0.7f);
     public Color invalidColor = new Color(1f, 0.2f, 0.2f, 0.7f);
     public Color rotationColor = new Color(1f, 0.8f, 0.2f, 0.7f);
+    [Header("Debug")]
+public bool disableUIBlocking = true; // Временно отключить блокировку UI
+
 
     private Camera mainCamera;
     private DickControlledCube cubeController;
@@ -42,8 +45,7 @@ public class GridObjectMover : MonoBehaviour
     public bool isInEditMode;
     private Renderer[] objectRenderers;
     private Dictionary<Renderer, Material[]> originalMaterials = new Dictionary<Renderer, Material[]>();
-    private enum SelectionMode { None, Clicked, Dragging }
-    private SelectionMode currentSelectionMode = SelectionMode.None;
+   private bool isObjectSelected = false;
     private bool isDragging = false;
     private bool isPermanentlySelected = false;
 
@@ -63,7 +65,7 @@ public class GridObjectMover : MonoBehaviour
     }
 private void Update()
 {
-     HandleEditModeToggle();
+    HandleEditModeToggle();
     
     if (isInEditMode)
     {
@@ -78,34 +80,17 @@ private void Update()
             UpdateObjectVisuals(isValid);
         }
     }
-     }
+}
 
 
    #region Selection System
 
-    public bool IsPointerOverUI()
+   public bool IsPointerOverUI()
 {
-    // Если нет EventSystem, считаем что UI не мешает
-    if (EventSystem.current == null)
-    {
-        Debug.LogWarning("EventSystem not found!");
-        return false;
-    }
-
-    // Для мобильных устройств
-    if (Input.touchCount > 0)
-    {
-        return EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
-    }
-    
-    // Для редактора и мыши
-    #if UNITY_EDITOR
-    if (Input.GetMouseButtonDown(0)) // Только в момент клика
-    #endif
-    return EventSystem.current.IsPointerOverGameObject();
-    
-    return false;
+    // Простая проверка для всех платформ
+    return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 }
+   
 
     private void StartDragging()
     {
@@ -211,7 +196,7 @@ private void Update()
     isDragging = false;
     isRotating = false;
     isPermanentlySelected = false;
-    currentSelectionMode = SelectionMode.None;
+   
     
     // Выключаем режим редактирования
     isInEditMode = false;
@@ -223,30 +208,47 @@ private void Update()
     #region Object Selection
     private void HandleObjectSelection()
 {
-    if (!isInEditMode) return; // Добавлено
+    if (!isInEditMode) return;
+    
     if (Input.GetMouseButtonDown(0))
     {
+        // ВАЖНО: Проверяем UI только здесь, в момент клика
+        
+        // Временное решение для тестирования
+        if (!disableUIBlocking && IsPointerOverUI())
+        {
+            Debug.Log("Clicked on UI - ignoring object selection");
+            return;
+        }
+        
+        
         var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
         if (Physics.Raycast(ray, out var hit, raycastDistance, movableLayer))
         {
+            Debug.Log($"Hit object: {hit.collider.gameObject.name}");
+            
             if (selectedObject != hit.collider.gameObject)
             {
                 ResetSelection();
                 SelectObject(hit.collider.gameObject);
-                currentSelectionMode = SelectionMode.Clicked;
             }
-            else
-            {
-                currentSelectionMode = SelectionMode.Dragging;
-                originalObjectPosition = selectedObject.transform.position;
-            }
+            
+            originalObjectPosition = selectedObject.transform.position;
+            isDragging = true;
+            isPermanentlySelected = false;
         }
-        else if (isPermanentlySelected)
+        else
         {
-            ResetSelection();
-        }
+            Debug.Log("Raycast missed movable objects");
+    // ЗАКОММЕНТИРУЙТЕ или УДАЛИТЕ этот блок:
+    // if (isPermanentlySelected)
+    // {
+    //     ResetSelection();
+    // }
     }
 }
+}
+
 
   private void SelectObject(GameObject obj)
 {
@@ -300,9 +302,9 @@ private void Update()
     Debug.Log($"Selected: {obj.name}, valid: {isValid}, rotatable: {isRotatable}");
 }
 
-   private void ResetSelection()
+  private void ResetSelection()
 {
-    // Восстанавливаем оригинальные материалы ВСЕГДА, независимо от состояния
+    // Восстанавливаем оригинальные материалы
     RestoreOriginalMaterials();
     
     // Отключаем UI
@@ -313,41 +315,44 @@ private void Update()
     objectRenderers = null;
     isPermanentlySelected = false;
     isDragging = false;
-    currentSelectionMode = SelectionMode.None;
     
     Debug.Log("Selection reset complete");
 }
     #endregion
 
     #region Object Manipulation
-     private void HandleObjectMovement()
+    private void HandleObjectMovement()
 {
-    if (!isInEditMode || selectedObject == null || currentSelectionMode != SelectionMode.Dragging) 
+    if (!isInEditMode || selectedObject == null || !isDragging) 
         return;
 
-        if (Input.GetMouseButton(0))
+    if (Input.GetMouseButton(0))
+    {
+        // Процесс перетаскивания
+        var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        if (Physics.Raycast(ray, out var hit, raycastDistance))
         {
-            // Процесс перетаскивания
-            var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out var hit, raycastDistance))
-            {
-                Vector3 newPos = GetSnappedPosition(hit.point);
-                newPos.y = selectedObject.transform.position.y;
-                selectedObject.transform.position = newPos;
-                UpdateObjectVisuals(IsPositionValid(newPos));
-            }
-        }
-        else if (Input.GetMouseButtonUp(0) && currentSelectionMode == SelectionMode.Dragging)
-        {
-            // Завершение перетаскивания
-            if (!IsPositionValid(selectedObject.transform.position))
-            {
-                selectedObject.transform.position = originalObjectPosition;
-            }
-            currentSelectionMode = SelectionMode.Clicked;
-            UpdateObjectVisuals(true);
+            Vector3 newPos = GetSnappedPosition(hit.point);
+            newPos.y = selectedObject.transform.position.y;
+            selectedObject.transform.position = newPos;
+            UpdateObjectVisuals(IsPositionValid(newPos));
         }
     }
+    else if (Input.GetMouseButtonUp(0))
+    {
+        // Завершение перетаскивания
+        isDragging = false;
+        
+        if (!IsPositionValid(selectedObject.transform.position))
+        {
+            selectedObject.transform.position = originalObjectPosition;
+        }
+        
+        // После перетаскивания объект остается выбранным
+        isPermanentlySelected = true;
+        UpdateObjectVisuals(true);
+    }
+}
 
 
     private void HandleRotationInput()
@@ -427,7 +432,15 @@ private void Update()
         mat.EnableKeyword("_ALPHABLEND_ON");
         mat.renderQueue = 3000;
     }
-
+  public void ResetAllMaterialsInScene()
+{
+    // Просто перезагружаем все рендереры
+    foreach (var renderer in FindObjectsOfType<Renderer>())
+    {
+        renderer.enabled = false;
+        renderer.enabled = true;
+    }
+}
     private void RestoreOriginalMaterials()
 {
     foreach (var kvp in originalMaterials)
