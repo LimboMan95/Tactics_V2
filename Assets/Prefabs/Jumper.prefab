@@ -1,0 +1,100 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &8468811345810656102
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 3168849938113286938, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: ca14421413254b14bbced651ff553db5, type: 2}
+    - target: {fileID: 4403493950155960141, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_Name
+      value: Jumper
+      objectReference: {fileID: 0}
+    - target: {fileID: 4403493950155960141, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_Layer
+      value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.05
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -7.980286
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.049999952
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0.37225762
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.7071068
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 90
+      objectReference: {fileID: 0}
+    - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 4403493950155960141, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -6130223148987207029}
+  m_SourcePrefab: {fileID: 100100000, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+--- !u!1 &5231803318492668971 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4403493950155960141, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+  m_PrefabInstance: {fileID: 8468811345810656102}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &-6130223148987207029
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5231803318492668971}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0267450d51ef50044a488ae8795f3008, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tileSize: {x: 1, y: 1}
+  centerOnTile: 1
+  yOffset: 0
+  snapToGround: 1
+  lockYPosition: 1
+  autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
+  gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}

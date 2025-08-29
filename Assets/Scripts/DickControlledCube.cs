@@ -78,6 +78,13 @@ public bool IsMovementEnabled => movementEnabled;
      private GameObject currentFinishTrigger; // Текущий триггер финиша
     private Vector3 triggerEntryPoint; // Точка входа в триггер
     private GridObjectMover editModeChecker;
+    [Header("Jump Tile Settings")]
+public string jumpTileTag = "JumpTile"; // Тэг для тайлов прыжка
+public Color jumpTileHighlightColor = Color.green; // Цвет подсветки для тайла прыжка
+
+private GameObject lastJumpTile;
+private bool isOnJumpTile;
+private Vector3 jumpTileEntryPoint;
 
     void Awake()
     {
@@ -198,7 +205,6 @@ public void SetRotatingState(bool state) {
 
     void FixedUpdate()
 {
-     if (isJumping) return; // Пропускаем стандартную логику во время прыжка
     UpdateVisualPointers();
     PeriodicGroundCheck();
     
@@ -209,6 +215,7 @@ public void SetRotatingState(bool state) {
     {
         // Вся логика тайлов ТОЛЬКО в игровом режиме
         CheckDirectionTileUnderneath();
+         CheckJumpTileUnderneath(); // Добавляем проверку тайлов прыжка
         
         if (isOnDirectionTile && !isRotating && lastDirectionTile != null) 
         {
@@ -223,10 +230,18 @@ public void SetRotatingState(bool state) {
                 }
             }
         }
+        if (isOnJumpTile && !isJumping && !isRotating && lastJumpTile != null)
+        {
+            float distance = Vector3.Dot(transform.position - jumpTileEntryPoint, currentDirection);
+            if (distance >= tileSize * 0.5f)
+            {
+                PerformJump();
+                isOnJumpTile = false;
+            }
+        }
+        
     }
-    
-    // Основное движение работает всегда
-    if (movementEnabled && !isRotating)
+    if (movementEnabled && !isRotating && !isJumping) // Добавляем проверку !isJumping
     {
         if (isGrounded)
         {
@@ -236,47 +251,60 @@ public void SetRotatingState(bool state) {
 }
 
 
-//void HandleMovementState()
-//{
-    //if (!isGrounded || rb.isKinematic) return;
-
-    //if (movementEnabled && !isRotating)
-    //{
-        // Убрать снэппинг на время движения (или использовать rb.MovePosition)
-    // if (ShouldSnapToGrid()) SnapToGrid(); 
-
-        // Только если нет препятствий впереди
-        // if (!Physics.Raycast(transform.position, currentDirection, checkDistance, obstacleMask)) {
-        //rb.linearVelocity = currentDirection * speed;
-   // }
-    //else {
-       // rb.linearVelocity = Vector3.zero;
-       // StartCoroutine(RotateOnCollision());
-   // }
-   // }
-   // else // Если движение выключено или вращаемся
-   // {
-    //    rb.linearVelocity = Vector3.zero;
-    //    rb.angularVelocity = Vector3.zero;
-    //}
-//}
-
- void OnTriggerEnter(Collider other) {
-      
-      if (editModeChecker != null && editModeChecker.isInEditMode) return;
-      if (((1 << other.gameObject.layer) & levelCompleteLayer) != 0)
+void CheckJumpTileUnderneath()
+{
+    if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
+    {
+        if (hit.collider.CompareTag(jumpTileTag))
         {
-            currentFinishTrigger = other.gameObject;
-            triggerEntryPoint = transform.position;
-            return;
+            HighlightJumpTile(hit.collider.gameObject);
         }
+    }
+}
+
+// Метод подсветки тайла прыжка
+void HighlightJumpTile(GameObject tile)
+{
+    if (lastHighlightedTile != null && lastHighlightedTile != tile)
+    {
+        ResetTileColor(lastHighlightedTile);
+    }
+
+    Renderer tileRenderer = tile.GetComponent<Renderer>();
+    if (tileRenderer != null)
+    {
+        originalTileColor = tileRenderer.material.color;
+        tileRenderer.material.color = jumpTileHighlightColor;
+        lastHighlightedTile = tile;
+        Invoke(nameof(ResetLastTileColor), highlightDuration);
+    }
+}
+
+ void OnTriggerEnter(Collider other)
+{
+    if (editModeChecker != null && editModeChecker.isInEditMode) return;
     
-    if (!other.CompareTag(directionTileTag)) return;
+    if (((1 << other.gameObject.layer) & levelCompleteLayer) != 0)
+    {
+        currentFinishTrigger = other.gameObject;
+        triggerEntryPoint = transform.position;
+        return;
+    }
     
-    lastDirectionTile = other.gameObject;
-    tileEntryPoint = transform.position; // Фиксируем точку входа
-    isOnDirectionTile = true;
-    // Убрали немедленный поворот!
+    if (other.CompareTag(directionTileTag))
+    {
+        lastDirectionTile = other.gameObject;
+        tileEntryPoint = transform.position;
+        isOnDirectionTile = true;
+    }
+    
+    // Добавляем обработку тайлов прыжка
+    if (other.CompareTag(jumpTileTag))
+    {
+        lastJumpTile = other.gameObject;
+        jumpTileEntryPoint = transform.position;
+        isOnJumpTile = true;
+    }
 }
 
  IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
@@ -313,18 +341,27 @@ public void SetRotatingState(bool state) {
         }
     }
     void OnTriggerExit(Collider other)
+{
+    if (editModeChecker != null && editModeChecker.isInEditMode) return;
+    
+    if (other.CompareTag(directionTileTag))
     {
-        if (editModeChecker != null && editModeChecker.isInEditMode) return;
-        if (other.CompareTag(directionTileTag))
-        {
-            isOnDirectionTile = false;
-            lastDirectionTile = null;
-        }
-         if (other.gameObject == currentFinishTrigger)
-        {
-            currentFinishTrigger = null;
-        }
+        isOnDirectionTile = false;
+        lastDirectionTile = null;
     }
+    
+    // Добавляем обработку выхода с тайла прыжка
+    if (other.CompareTag(jumpTileTag))
+    {
+        isOnJumpTile = false;
+        lastJumpTile = null;
+    }
+    
+    if (other.gameObject == currentFinishTrigger)
+    {
+        currentFinishTrigger = null;
+    }
+}
 
     bool HasReachedTriggerCenter(Collider trigger)
     {
@@ -420,26 +457,28 @@ public void StopGame()
 
 public void ResetAllTileColors()
 {
-    // Отменяем запланированный сброс если он есть
     CancelInvoke(nameof(ResetLastTileColor));
     
-    // Сбрасываем последний подсвеченный тайл
     if (lastHighlightedTile != null)
     {
         ResetTileColor(lastHighlightedTile);
         lastHighlightedTile = null;
     }
     
-    // Дополнительно: сбрасываем ВСЕ тайлы на сцене
-    GameObject[] allTiles = GameObject.FindGameObjectsWithTag(directionTileTag);
-    foreach (GameObject tile in allTiles)
+    // Сбрасываем ВСЕ тайлы на сцене (и поворотные, и прыжковые)
+    GameObject[] directionTiles = GameObject.FindGameObjectsWithTag(directionTileTag);
+    GameObject[] jumpTiles = GameObject.FindGameObjectsWithTag(jumpTileTag);
+    
+    foreach (GameObject tile in directionTiles)
     {
         Renderer renderer = tile.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            // Просто красим в стандартный цвет
-            renderer.material.color = Color.white;
-        }
+        if (renderer != null) renderer.material.color = Color.white;
+    }
+    
+    foreach (GameObject tile in jumpTiles)
+    {
+        Renderer renderer = tile.GetComponent<Renderer>();
+        if (renderer != null) renderer.material.color = Color.white;
     }
     
     Debug.Log("Все тайлы сброшены");
