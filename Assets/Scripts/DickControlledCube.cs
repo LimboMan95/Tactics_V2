@@ -43,6 +43,15 @@ public class DickControlledCube : MonoBehaviour
     [Header("Movement Control")]
     public bool movementEnabled = true;
     public Vector3 currentDirection = Vector3.forward;
+    [Header("Jump Settings")]
+public float jumpHeight = 1f;
+public float jumpDistance = 2f;
+public float jumpDuration = 0.8f;
+public AnimationCurve jumpCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.5f, 1f), new Keyframe(1, 0));
+
+private bool isJumping = false;
+private Vector3 jumpStartPosition;
+private Vector3 jumpTargetPosition;
 
     private Rigidbody rb;
     [SerializeField] private bool isRotating = false;
@@ -117,7 +126,69 @@ public bool IsMovementEnabled => movementEnabled;
         }
     }
 
-
+public void PerformJump()
+{
+    if (isJumping || isRotating || !isGrounded) return;
+    
+    StartCoroutine(JumpRoutine());
+}
+private IEnumerator JumpRoutine()
+{
+    // Сохраняем состояние и отключаем стандартное управление
+    isJumping = true;
+    bool wasMovementEnabled = movementEnabled;
+    movementEnabled = false;
+    
+    // Останавливаем физику
+    rb.linearVelocity = Vector3.zero;
+    rb.angularVelocity = Vector3.zero;
+    
+    // Запоминаем начальную позицию и рассчитываем целевую
+    jumpStartPosition = transform.position;
+    jumpTargetPosition = jumpStartPosition + currentDirection * jumpDistance;
+    jumpTargetPosition = GetSnappedPosition(jumpTargetPosition); // Снэпим цель к сетке
+    
+    // Временно отключаем проверку земли чтобы избежать падения
+    bool wasGravityEnabled = rb.useGravity;
+    rb.useGravity = false;
+    bool wasFreezeRotation = rb.freezeRotation;
+    
+    float elapsed = 0f;
+    
+    while (elapsed < jumpDuration)
+    {
+        elapsed += Time.deltaTime;
+        float progress = elapsed / jumpDuration;
+        float curveValue = jumpCurve.Evaluate(progress);
+        
+        // Параболическая траектория: движение вперед + вертикальный подъем/спуск
+        Vector3 newPosition = Vector3.Lerp(jumpStartPosition, jumpTargetPosition, progress);
+        newPosition.y = jumpStartPosition.y + curveValue * jumpHeight;
+        
+        // Плавное перемещение
+        rb.MovePosition(newPosition);
+        
+        yield return null;
+    }
+    
+    // Гарантированно становимся в конечную позицию
+    Vector3 finalPosition = GetSnappedPosition(jumpTargetPosition);
+    finalPosition.y = jumpStartPosition.y; // Возвращаем исходную высоту
+    rb.MovePosition(finalPosition);
+    
+    // Восстанавливаем физические настройки
+    rb.useGravity = wasGravityEnabled;
+    rb.freezeRotation = wasFreezeRotation;
+    
+    // Восстанавливаем состояние
+    movementEnabled = wasMovementEnabled;
+    isJumping = false;
+    
+    // Принудительно проверяем землю после приземления
+    isGrounded = CheckGround();
+    
+    Debug.Log("Jump completed! Grounded: " + isGrounded);
+}
 
 
 public void SetRotatingState(bool state) {
@@ -127,6 +198,7 @@ public void SetRotatingState(bool state) {
 
     void FixedUpdate()
 {
+     if (isJumping) return; // Пропускаем стандартную логику во время прыжка
     UpdateVisualPointers();
     PeriodicGroundCheck();
     
@@ -435,6 +507,7 @@ public void ForceUpdateDirection(Vector3 newDirection)
 
     void HandleMovement()
     {
+        if (isJumping) return; // Не двигаемся во время прыжка
         if (ShouldSnapToGrid())
         {
             SnapToGrid();
@@ -629,6 +702,7 @@ bool ShouldSnapToGrid()
 
     void PeriodicGroundCheck()
     {
+        if (isJumping) return; // Не проверяем землю во время прыжка
         isGrounded = CheckGround();
         if (!isGrounded) StartFalling();
     }
