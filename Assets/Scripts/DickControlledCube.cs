@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 [RequireComponent(typeof(Rigidbody))]
 public class DickControlledCube : MonoBehaviour
@@ -85,6 +86,7 @@ public Color jumpTileHighlightColor = Color.green; // Цвет подсветк�
 private GameObject lastJumpTile;
 private bool isOnJumpTile;
 private Vector3 jumpTileEntryPoint;
+private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameObject, Color>();
 
     void Awake()
     {
@@ -265,6 +267,7 @@ void CheckJumpTileUnderneath()
 // Метод подсветки тайла прыжка
 void HighlightJumpTile(GameObject tile)
 {
+    // Сбрасываем предыдущую подсветку
     if (lastHighlightedTile != null && lastHighlightedTile != tile)
     {
         ResetTileColor(lastHighlightedTile);
@@ -273,7 +276,12 @@ void HighlightJumpTile(GameObject tile)
     Renderer tileRenderer = tile.GetComponent<Renderer>();
     if (tileRenderer != null)
     {
-        originalTileColor = tileRenderer.material.color;
+        // Сохраняем оригинальный цвет если еще не сохранили
+        if (!tileOriginalColors.ContainsKey(tile))
+        {
+            tileOriginalColors[tile] = tileRenderer.material.color;
+        }
+        
         tileRenderer.material.color = jumpTileHighlightColor;
         lastHighlightedTile = tile;
         Invoke(nameof(ResetLastTileColor), highlightDuration);
@@ -459,28 +467,20 @@ public void ResetAllTileColors()
 {
     CancelInvoke(nameof(ResetLastTileColor));
     
-    if (lastHighlightedTile != null)
+    // Сбрасываем все тайлы, цвета которых мы сохранили
+    foreach (var tileEntry in tileOriginalColors)
     {
-        ResetTileColor(lastHighlightedTile);
-        lastHighlightedTile = null;
+        if (tileEntry.Key != null)
+        {
+            Renderer renderer = tileEntry.Key.GetComponent<Renderer>();
+            if (renderer != null) 
+            {
+                renderer.material.color = tileEntry.Value;
+            }
+        }
     }
     
-    // Сбрасываем ВСЕ тайлы на сцене (и поворотные, и прыжковые)
-    GameObject[] directionTiles = GameObject.FindGameObjectsWithTag(directionTileTag);
-    GameObject[] jumpTiles = GameObject.FindGameObjectsWithTag(jumpTileTag);
-    
-    foreach (GameObject tile in directionTiles)
-    {
-        Renderer renderer = tile.GetComponent<Renderer>();
-        if (renderer != null) renderer.material.color = Color.white;
-    }
-    
-    foreach (GameObject tile in jumpTiles)
-    {
-        Renderer renderer = tile.GetComponent<Renderer>();
-        if (renderer != null) renderer.material.color = Color.white;
-    }
-    
+    lastHighlightedTile = null;
     Debug.Log("Все тайлы сброшены");
 }
 
@@ -708,36 +708,51 @@ bool ShouldSnapToGrid()
         }
     }
 
-    void HighlightTile(GameObject tile)
-    {
-        if (lastHighlightedTile != null)
-        {
-            ResetTileColor(lastHighlightedTile);
-        }
-
-        Renderer tileRenderer = tile.GetComponent<Renderer>();
-        if (tileRenderer != null)
-        {
-            originalTileColor = tileRenderer.material.color;
-            tileRenderer.material.color = tileHighlightColor;
-            lastHighlightedTile = tile;
-            Invoke(nameof(ResetLastTileColor), highlightDuration);
-        }
-    }
-
-    void ResetTileColor(GameObject tile)
-    {
-        if (tile != null)
-        {
-            Renderer renderer = tile.GetComponent<Renderer>();
-            if (renderer != null) renderer.material.color = originalTileColor;
-        }
-    }
-
-    void ResetLastTileColor()
+   void HighlightTile(GameObject tile)
+{
+    if (lastHighlightedTile != null && lastHighlightedTile != tile)
     {
         ResetTileColor(lastHighlightedTile);
     }
+
+    Renderer tileRenderer = tile.GetComponent<Renderer>();
+    if (tileRenderer != null)
+    {
+        // Сохраняем оригинальный цвет если еще не сохранили
+        if (!tileOriginalColors.ContainsKey(tile))
+        {
+            tileOriginalColors[tile] = tileRenderer.material.color;
+        }
+        
+        tileRenderer.material.color = tileHighlightColor;
+        lastHighlightedTile = tile;
+        Invoke(nameof(ResetLastTileColor), highlightDuration);
+    }
+}
+
+    void ResetTileColor(GameObject tile)
+{
+    if (tile != null && tileOriginalColors.ContainsKey(tile))
+    {
+        Renderer renderer = tile.GetComponent<Renderer>();
+        if (renderer != null) 
+        {
+            renderer.material.color = tileOriginalColors[tile];
+            
+            // Опционально: можно удалить из словаря после сброса
+            // tileOriginalColors.Remove(tile);
+        }
+    }
+}
+
+   void ResetLastTileColor()
+{
+    if (lastHighlightedTile != null)
+    {
+        ResetTileColor(lastHighlightedTile);
+        lastHighlightedTile = null;
+    }
+}
 
     void PeriodicGroundCheck()
     {
