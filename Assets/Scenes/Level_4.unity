@@ -8181,6 +8181,8 @@ MonoBehaviour:
   validColor: {r: 0.2, g: 1, b: 0.2, a: 0.7}
   invalidColor: {r: 1, g: 0.2, b: 0.2, a: 0.7}
   rotationColor: {r: 1, g: 0.8, b: 0.2, a: 0.7}
+  disableUIBlocking: 1
+  isInEditMode: 0
 --- !u!4 &912526726 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 6741760051559598095, guid: 8154a78d29d4c834fac42410ad6de8c1, type: 3}
@@ -17537,6 +17539,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 908340935}
+        m_TargetAssemblyTypeName: DickControlledCube, Assembly-CSharp
+        m_MethodName: StopGame
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &2125089391
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -18278,6 +18292,10 @@ PrefabInstance:
       value: 0.25
       objectReference: {fileID: 0}
     - target: {fileID: 6803896221794286350, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
+      propertyPath: centerOnTile
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6803896221794286350, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: snapToGround
       value: 0
       objectReference: {fileID: 0}
@@ -18299,7 +18317,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7276718765772469012, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -2.6421366
+      value: -1.6421366
       objectReference: {fileID: 0}
     - target: {fileID: 7276718765772469012, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: m_LocalRotation.w
