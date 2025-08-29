@@ -387,6 +387,8 @@ MonoBehaviour:
   snapToGround: 0
   lockYPosition: 0
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!1001 &78518444
 PrefabInstance:
@@ -2092,6 +2094,8 @@ MonoBehaviour:
   snapToGround: 0
   lockYPosition: 0
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!1 &215831566
 GameObject:
@@ -2774,6 +2778,8 @@ MonoBehaviour:
   snapToGround: 0
   lockYPosition: 0
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!1001 &286870533
 PrefabInstance:
@@ -5026,6 +5032,8 @@ MonoBehaviour:
   snapToGround: 1
   lockYPosition: 1
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!114 &533660251
 MonoBehaviour:
@@ -6603,6 +6611,8 @@ MonoBehaviour:
   snapToGround: 1
   lockYPosition: 1
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!114 &717016556
 MonoBehaviour:
@@ -7859,6 +7869,8 @@ MonoBehaviour:
   snapToGround: 0
   lockYPosition: 0
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!1 &892400714
 GameObject:
@@ -8009,6 +8021,8 @@ MonoBehaviour:
   snapToGround: 1
   lockYPosition: 0
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!114 &908340947
 MonoBehaviour:
@@ -8162,6 +8176,8 @@ MonoBehaviour:
   snapToGround: 1
   lockYPosition: 1
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!1001 &932082901
 PrefabInstance:
@@ -11819,6 +11835,8 @@ MonoBehaviour:
   snapToGround: 1
   lockYPosition: 1
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!1 &1375831463
 GameObject:
@@ -11885,6 +11903,10 @@ PrefabInstance:
       value: 0.25
       objectReference: {fileID: 0}
     - target: {fileID: 6803896221794286350, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6803896221794286350, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: centerOnTile
       value: 0
       objectReference: {fileID: 0}
@@ -11910,7 +11932,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7276718765772469012, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -3.6421366
+      value: -4.6421366
       objectReference: {fileID: 0}
     - target: {fileID: 7276718765772469012, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: m_LocalRotation.w
@@ -18544,6 +18566,10 @@ PrefabInstance:
       value: 0.25
       objectReference: {fileID: 0}
     - target: {fileID: 6803896221794286350, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6803896221794286350, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: centerOnTile
       value: 0
       objectReference: {fileID: 0}
@@ -18569,7 +18595,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7276718765772469012, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -1.6421366
+      value: -2.6421366
       objectReference: {fileID: 0}
     - target: {fileID: 7276718765772469012, guid: ad8a9ff957b9ffa42ba3a3e9d618be36, type: 3}
       propertyPath: m_LocalRotation.w

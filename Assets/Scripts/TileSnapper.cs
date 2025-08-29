@@ -13,8 +13,12 @@ public class TileSnapper : MonoBehaviour
     public float yOffset = 0;
     public bool snapToGround = true;
     public bool lockYPosition = false;
-    [Tooltip("Автоматически поднимает объект, чтобы он не утопало в земле")]
     public bool autoAdjustHeight = true;
+    
+    [Tooltip("Фиксированная привязка - всегда к конкретным ячейкам")]
+    public bool useFixedSnapping = false;
+    [Tooltip("Якорь привязки (левый нижний угол)")]
+    public Vector2Int gridAnchor = Vector2Int.zero;
 
     [Header("Debug")]
     public Color gizmoColor = new Color(1, 0.5f, 0, 0.5f);
@@ -56,7 +60,7 @@ public class TileSnapper : MonoBehaviour
         {
             if (wasInPlayMode)
             {
-                SnapToGrid();
+                ForceFixedSnap(); // Принудительная фиксированная привязка
                 wasInPlayMode = false;
             }
         }
@@ -67,14 +71,23 @@ public class TileSnapper : MonoBehaviour
     {
         if (Application.isPlaying) return;
         
+        if (useFixedSnapping)
+        {
+            FixedSnapToGrid();
+        }
+        else
+        {
+            DynamicSnapToGrid();
+        }
+    }
+
+    private void DynamicSnapToGrid()
+    {
+        // Старая логика (оригинальная)
         if (GridGenerator.Instance == null)
         {
-            GridGenerator.Instance = FindAnyObjectByType<GridGenerator>();
-            if (GridGenerator.Instance == null)
-            {
-                Debug.LogError("Add GridGenerator to scene!", this);
-                return;
-            }
+            Debug.LogError("Add GridGenerator to scene!", this);
+            return;
         }
 
         float spacing = GridGenerator.Instance.tileSpacing;
@@ -82,11 +95,9 @@ public class TileSnapper : MonoBehaviour
 
         if (lockYPosition) pos.y = yOffset;
 
-        // Расчет позиции в сетке тайлов
         int gridX = Mathf.RoundToInt(pos.x / spacing);
         int gridZ = Mathf.RoundToInt(pos.z / spacing);
         
-        // Расчет целевой позиции в мировых координатах
         Vector3 targetPos;
         if (centerOnTile)
         {
@@ -94,8 +105,6 @@ public class TileSnapper : MonoBehaviour
         }
         else
         {
-            // Корректное смещение для объектов, занимающих несколько тайлов.
-            // Мы вычисляем центр занимаемой области, а не просто привязываемся к углу.
             targetPos = new Vector3(
                 (gridX * spacing) + (tileSize.x - 1) * spacing * 0.5f,
                 pos.y,
@@ -103,6 +112,66 @@ public class TileSnapper : MonoBehaviour
             );
         }
         
+        pos.x = targetPos.x;
+        pos.z = targetPos.z;
+
+        // Обработка высоты (без изменений)
+        if (snapToGround && !lockYPosition)
+        {
+            Vector3 raycastOrigin = new Vector3(pos.x, 100, pos.z);
+            
+            if (Physics.Raycast(raycastOrigin, Vector3.down, out RaycastHit hit, 200))
+            {
+                if (autoAdjustHeight)
+                {
+                    Renderer rend = GetComponentInChildren<Renderer>();
+                    if (rend != null)
+                    {
+                        float modelHeight = rend.bounds.size.y;
+                        pos.y = hit.point.y + (modelHeight * 0.5f) + yOffset;
+                    }
+                    else
+                    {
+                        pos.y = hit.point.y + yOffset;
+                    }
+                }
+                else
+                {
+                    pos.y = hit.point.y + yOffset;
+                }
+            }
+            else
+            {
+                pos.y = yOffset;
+            }
+        }
+        else
+        {
+            pos.y = yOffset;
+        }
+
+        transform.position = pos;
+        lastPosition = pos;
+    }
+
+    private void FixedSnapToGrid()
+    {
+        if (GridGenerator.Instance == null)
+        {
+            Debug.LogError("Add GridGenerator to scene!", this);
+            return;
+        }
+
+        float spacing = GridGenerator.Instance.tileSpacing;
+        Vector3 pos = transform.position;
+
+        // ФИКСИРОВАННАЯ ПРИВЯЗКА: Всегда к конкретным ячейкам
+        Vector3 targetPos = new Vector3(
+            gridAnchor.x * spacing + (tileSize.x * spacing * 0.5f),
+            pos.y,
+            gridAnchor.y * spacing + (tileSize.y * spacing * 0.5f)
+        );
+
         pos.x = targetPos.x;
         pos.z = targetPos.z;
 
@@ -145,43 +214,58 @@ public class TileSnapper : MonoBehaviour
         lastPosition = pos;
     }
 
+    public void ForceFixedSnap()
+    {
+        useFixedSnapping = true;
+        SnapToGrid();
+    }
+
+    public void SetGridAnchorManually()
+    {
+        if (GridGenerator.Instance == null) return;
+        
+        float spacing = GridGenerator.Instance.tileSpacing;
+        Vector3 pos = transform.position;
+        
+        // Автоматически вычисляем якорь из текущей позиции
+        gridAnchor.x = Mathf.RoundToInt((pos.x - (tileSize.x * spacing * 0.5f)) / spacing);
+        gridAnchor.y = Mathf.RoundToInt((pos.z - (tileSize.y * spacing * 0.5f)) / spacing);
+        
+        Debug.Log($"Grid Anchor set to: {gridAnchor}");
+    }
+
     void OnDrawGizmosSelected()
     {
         if (GridGenerator.Instance == null) return;
         
         float spacing = GridGenerator.Instance.tileSpacing;
         
-        // Рисуем основной оранжевый гизмо
+        // Визуализация фиксированной привязки
+        if (useFixedSnapping)
+        {
+            Gizmos.color = Color.cyan;
+            Vector3 anchorWorldPos = new Vector3(
+                gridAnchor.x * spacing,
+                transform.position.y + 0.1f,
+                gridAnchor.y * spacing
+            );
+            Gizmos.DrawSphere(anchorWorldPos, 0.2f);
+            Gizmos.DrawLine(anchorWorldPos, transform.position);
+        }
+        
+        // Остальная визуализация без изменений
         Gizmos.color = gizmoColor;
-        Vector3 size = new Vector3(
-            tileSize.x * spacing,
-            0.1f,
-            tileSize.y * spacing
-        );
+        Vector3 size = new Vector3(tileSize.x * spacing, 0.1f, tileSize.y * spacing);
         
-        Vector3 center;
-        
-        if (centerOnTile)
-        {
-            center = transform.position;
-        }
-        else
-        {
-            center = transform.position; // Центр гизмо совпадает с позицией объекта
-        }
-        
+        Vector3 center = transform.position;
         Gizmos.DrawCube(center + new Vector3(0, yOffset + 0.05f, 0), size);
         
-        // Рисуем границы каждого тайла
         Gizmos.color = Color.red;
         for (int x = 0; x < tileSize.x; x++)
         {
             for (int z = 0; z < tileSize.y; z++)
             {
-                Vector3 tileCenter;
-                
-                // Пересчитываем позицию каждого тайла относительно центра объекта
-                tileCenter = transform.position + new Vector3(
+                Vector3 tileCenter = transform.position + new Vector3(
                     (x - (tileSize.x - 1) * 0.5f) * spacing,
                     yOffset + 0.06f,
                     (z - (tileSize.y - 1) * 0.5f) * spacing
@@ -191,11 +275,9 @@ public class TileSnapper : MonoBehaviour
             }
         }
         
-        // Рисуем линию до земли для отладки
         if (snapToGround && !lockYPosition)
         {
             Vector3 raycastOrigin = new Vector3(transform.position.x, 100, transform.position.z);
-            
             Gizmos.color = Color.green;
             Gizmos.DrawLine(raycastOrigin, raycastOrigin + Vector3.down * 200);
             
@@ -206,7 +288,6 @@ public class TileSnapper : MonoBehaviour
             }
         }
         
-        // Рисуем точку центра привязки
         Gizmos.color = Color.blue;
         Gizmos.DrawSphere(transform.position, 0.1f);
     }
@@ -218,6 +299,14 @@ public class TileSnapper : MonoBehaviour
         foreach (var obj in Selection.gameObjects)
             if (obj.TryGetComponent<TileSnapper>(out var snapper))
                 snapper.SnapToGrid();
+    }
+
+    [MenuItem("Tools/Set Fixed Anchor")]
+    static void SetFixedAnchor()
+    {
+        foreach (var obj in Selection.gameObjects)
+            if (obj.TryGetComponent<TileSnapper>(out var snapper))
+                snapper.SetGridAnchorManually();
     }
 #endif
 }
