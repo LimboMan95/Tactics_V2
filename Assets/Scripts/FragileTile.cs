@@ -28,6 +28,10 @@ public class FragileTile : MonoBehaviour
 
     void Update()
     {
+         // Не обрабатываем логику в режиме редактирования
+    GridObjectMover editModeChecker = FindAnyObjectByType<GridObjectMover>();
+    if (editModeChecker != null && editModeChecker.isInEditMode) return;
+        
         if (isCubeOnTile && !isBroken && cube != null)
         {
             // Рассчитываем успеет ли куб проехать
@@ -90,6 +94,43 @@ public class FragileTile : MonoBehaviour
             Debug.Log("Куб свалил с тайла");
         }
     }
+
+    void OnDisable()
+{
+    // Отменяем все процессы при выключении объекта
+    CancelAllProcesses();
+}
+
+    public void ForceRespawn()
+{
+    // Отменяем все запланированные вызовы
+    CancelInvoke();
+    
+    // Немедленно восстанавливаем тайл
+    tileRenderer.enabled = true;
+    tileCollider.enabled = true;
+    tileRenderer.material.color = originalColor;
+    isBroken = false;
+    isCubeOnTile = false;
+    cube = null;
+    
+    // Останавливаем частицы если они играют
+    if (breakParticles != null && breakParticles.isPlaying)
+        breakParticles.Stop();
+    
+    Debug.Log("Тайл принудительно восстановлен 🔄");
+}
+
+public void CancelAllProcesses()
+{
+    CancelInvoke(); // Отменяем все Invoke вызовы
+    isCubeOnTile = false;
+    cube = null;
+    
+    // Сбрасываем цвет на оригинальный
+    if (tileRenderer != null)
+        tileRenderer.material.color = originalColor;
+}
 
     private void BreakTile()
     {

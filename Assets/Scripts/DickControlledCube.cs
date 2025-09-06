@@ -201,6 +201,16 @@ private IEnumerator SpeedBoostRoutine()
     }
 }
 
+public void ResetAllFragileTiles()
+{
+    FragileTile[] allFragileTiles = FindObjectsOfType<FragileTile>();
+    foreach (FragileTile tile in allFragileTiles)
+    {
+        tile.ForceRespawn();
+    }
+    Debug.Log("Все хрупкие тайлы восстановлены");
+}
+
 
 public void PerformJump()
 {
@@ -553,6 +563,8 @@ public void StopGame()
     ResetAllTileColors();
      // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
     ResetSpeedBoost();
+    // Восстанавливаем хрупкие тайлы ← ДОБАВИТЬ ЭТО
+    ResetAllFragileTiles();
     
     Debug.Log("Игра остановлена");
 }
@@ -594,6 +606,8 @@ public void FullReset() {
     movementEnabled = false;
      // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
     ResetSpeedBoost();
+    // Восстанавливаем хрупкие тайлы ← ДОБАВИТЬ ЭТО
+    ResetAllFragileTiles();
     
     if (TryGetComponent<Rigidbody>(out var rb)) {
         rb.linearVelocity = Vector3.zero;
@@ -633,6 +647,8 @@ public void ForceUpdateDirection(Vector3 newDirection)
         rb.useGravity = false;
          // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
     ResetSpeedBoost();
+     // Восстанавливаем хрупкие тайлы ← ДОБАВИТЬ ЭТО
+    ResetAllFragileTiles();
         
         // Сброс визуального указателя
         if (visualPointer != null && mainPointer != null)
