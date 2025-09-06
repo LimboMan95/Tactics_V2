@@ -8,6 +8,9 @@ TagManager:
   - Strict Obstacle
   - Movable
   - Jumper
+  - Fragile
+  - Frigle
+  - Speed
   layers:
   - Default
   - TransparentFX

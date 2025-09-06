@@ -53,6 +53,18 @@ public AnimationCurve jumpCurve = new AnimationCurve(new Keyframe(0, 0), new Key
 private bool isJumping = false;
 private Vector3 jumpStartPosition;
 private Vector3 jumpTargetPosition;
+[Header("Fragile Tile Settings")]
+public string fragileTileTag = "FragileTile";
+[Header("Speed Tile Settings")]
+public string speedTileTag = "SpeedTile";
+public Color speedTileHighlightColor = Color.yellow;
+public float speedMultiplier = 2f;
+public float speedBoostDuration = 3f;
+private bool isSpeedBoosted = false; // ← ПЕРЕМЕЩАЕМ СЮДА!
+
+private float originalSpeed;
+public bool IsSpeedBoosted => isSpeedBoosted;
+private Coroutine speedBoostCoroutine;
 
     private Rigidbody rb;
     [SerializeField] private bool isRotating = false;
@@ -87,6 +99,7 @@ private GameObject lastJumpTile;
 private bool isOnJumpTile;
 private Vector3 jumpTileEntryPoint;
 private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameObject, Color>();
+
 
     void Awake()
     {
@@ -125,6 +138,8 @@ private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameOb
          materialBlock = new MaterialPropertyBlock();
         GetComponent<MeshRenderer>().GetPropertyBlock(materialBlock);
         originalColor = GetComponent<MeshRenderer>().material.color;
+
+         originalSpeed = speed; // ← ДОБАВЛЯЕМ В Start()
     }
 
     void Update()
@@ -134,6 +149,54 @@ private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameOb
             StartCoroutine(RotateToDirection(Vector3.forward));
         }
     }
+    public float GetCurrentSpeed()
+{
+    return speed;
+}
+public float GetBaseSpeed()
+{
+    return originalSpeed;
+}
+
+
+void CheckSpeedTileUnderneath()
+{
+    if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
+    {
+        if (hit.collider.CompareTag(speedTileTag))
+        {
+            HighlightTile(hit.collider.gameObject, speedTileHighlightColor);
+        }
+    }
+}
+
+// ДОБАВЛЯЕМ МЕТОД ДЛЯ АКТИВАЦИИ СКОРОСТИ
+public void ActivateSpeedBoost()
+{
+    if (speedBoostCoroutine != null)
+        StopCoroutine(speedBoostCoroutine);
+    
+    speedBoostCoroutine = StartCoroutine(SpeedBoostRoutine());
+}
+
+// ДОБАВЛЯЕМ КОРУТИНУ СКОРОСТИ
+private IEnumerator SpeedBoostRoutine()
+{
+    isSpeedBoosted = true;
+    speed = originalSpeed * speedMultiplier;
+    Debug.Log($"Скорость x{speedMultiplier}! Вжух!");
+    
+    // Визуальный эффект
+    SetColor(Color.yellow);
+    
+    yield return new WaitForSeconds(speedBoostDuration);
+    
+    speed = originalSpeed;
+    isSpeedBoosted = false;
+    SetColor(originalColor);
+    Debug.Log("Скорость вернулась к нормальной");
+}
+
 
 public void PerformJump()
 {
@@ -213,11 +276,14 @@ public void SetRotatingState(bool state) {
     // ← ВАЖНО: Полностью отключаем ВСЮ логику тайлов в режиме редактирования
     bool shouldProcessTiles = editModeChecker == null || !editModeChecker.isInEditMode;
     
+    
     if (shouldProcessTiles)
     {
         // Вся логика тайлов ТОЛЬКО в игровом режиме
-        CheckDirectionTileUnderneath();
-         CheckJumpTileUnderneath(); // Добавляем проверку тайлов прыжка
+       CheckDirectionTileUnderneath();
+        CheckJumpTileUnderneath();
+        CheckSpeedTileUnderneath();
+
         
         if (isOnDirectionTile && !isRotating && lastDirectionTile != null) 
         {
@@ -312,6 +378,14 @@ void HighlightJumpTile(GameObject tile)
         lastJumpTile = other.gameObject;
         jumpTileEntryPoint = transform.position;
         isOnJumpTile = true;
+    }
+     if (other.CompareTag(fragileTileTag))
+    {
+        // Логика теперь в самом тайле, можно оставить пустое
+    }
+    if (other.CompareTag(speedTileTag))
+    {
+        ActivateSpeedBoost();
     }
 }
 
@@ -703,12 +777,12 @@ bool ShouldSnapToGrid()
         {
             if (hit.collider.CompareTag(directionTileTag))
             {
-                HighlightTile(hit.collider.gameObject);
+                HighlightTile(hit.collider.gameObject, tileHighlightColor);
             }
         }
     }
 
-   void HighlightTile(GameObject tile)
+   void HighlightTile(GameObject tile, Color highlightColor)
 {
     if (lastHighlightedTile != null && lastHighlightedTile != tile)
     {
@@ -724,7 +798,7 @@ bool ShouldSnapToGrid()
             tileOriginalColors[tile] = tileRenderer.material.color;
         }
         
-        tileRenderer.material.color = tileHighlightColor;
+        tileRenderer.material.color = highlightColor;
         lastHighlightedTile = tile;
         Invoke(nameof(ResetLastTileColor), highlightDuration);
     }
