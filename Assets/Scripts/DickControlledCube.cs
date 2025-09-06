@@ -191,10 +191,14 @@ private IEnumerator SpeedBoostRoutine()
     
     yield return new WaitForSeconds(speedBoostDuration);
     
-    speed = originalSpeed;
-    isSpeedBoosted = false;
-    SetColor(originalColor);
-    Debug.Log("Скорость вернулась к нормальной");
+    // Проверяем что объект еще активен
+    if (this != null && gameObject.activeInHierarchy)
+    {
+        speed = originalSpeed;
+        isSpeedBoosted = false;
+        SetColor(originalColor);
+        Debug.Log("Скорость вернулась к нормальной");
+    }
 }
 
 
@@ -470,6 +474,20 @@ void HighlightJumpTile(GameObject tile)
         movementEnabled = !movementEnabled;
         Debug.Log($"Movement {(movementEnabled ? "ENABLED" : "DISABLED")}");
     }
+
+    public void ResetSpeedBoost()
+{
+    if (speedBoostCoroutine != null)
+    {
+        StopCoroutine(speedBoostCoroutine);
+        speedBoostCoroutine = null;
+    }
+    
+    isSpeedBoosted = false;
+    speed = originalSpeed;
+    SetColor(originalColor);
+    Debug.Log("Speed boost reset");
+}
     
   public void DisableMovement()
 {
@@ -533,6 +551,8 @@ public void StopGame()
     
     // Сбрасываем цвета тайлов
     ResetAllTileColors();
+     // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
+    ResetSpeedBoost();
     
     Debug.Log("Игра остановлена");
 }
@@ -572,6 +592,8 @@ public void FullReset() {
     isRotating = false;
     isGrounded = true;
     movementEnabled = false;
+     // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
+    ResetSpeedBoost();
     
     if (TryGetComponent<Rigidbody>(out var rb)) {
         rb.linearVelocity = Vector3.zero;
@@ -609,6 +631,8 @@ public void ForceUpdateDirection(Vector3 newDirection)
         isGrounded = true;
         rb.freezeRotation = true;
         rb.useGravity = false;
+         // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
+    ResetSpeedBoost();
         
         // Сброс визуального указателя
         if (visualPointer != null && mainPointer != null)
@@ -685,6 +709,11 @@ public void ForceUpdateDirection(Vector3 newDirection)
     {
         CancelInvoke(); // Отменяем все запланированные вызовы
         EndCollision(); // Восстанавливаем цвет
+        // Сбрасываем ускорение при выключении ← ДОБАВИТЬ ЭТО
+    if (isSpeedBoosted)
+    {
+        ResetSpeedBoost();
+    }
     }
 
 // Новый вспомогательный метод для проверки тайлов
