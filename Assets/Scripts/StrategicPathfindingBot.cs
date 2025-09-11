@@ -11,16 +11,18 @@ public class StrategicPathfindingBot : MonoBehaviour
     
     [Header("Settings")]
     public float setupWaitTime = 0.1f;
+    public float movementWaitTime = 0.3f;
     public string directionTileTag = "DirectionTile";
     public string jumpTileTag = "JumpTile";
     public LayerMask groundLayer;
     public LayerMask obstacleLayer;
-    public LayerMask finishLayer; // <-- Убедись что этот слой настроен
+    public LayerMask finishLayer;
     public float tileSize = 1f;
 
     private List<System.Action> finalActions;
     private bool isExecutingPath = false;
     private List<GameObject> availableDirectionTiles = new List<GameObject>();
+    private List<ToolPlacement> toolPlacements = new List<ToolPlacement>();
 
     void Start()
     {
@@ -35,13 +37,10 @@ public class StrategicPathfindingBot : MonoBehaviour
         StartCoroutine(StrategicSolver());
     }
 
-    // ДОБАВЛЯЕМ МЕТОД ДЛЯ ПРОВЕРКИ ФИНИША
     private bool IsFinishTrigger(Vector3 pos)
     {
         Collider[] colliders = Physics.OverlapSphere(pos, 0.3f, finishLayer);
-        bool isFinish = colliders.Length > 0;
-        if (isFinish) Debug.Log($"Finish detected at position: {pos}");
-        return isFinish;
+        return colliders.Length > 0;
     }
 
     private IEnumerator StrategicSolver()
@@ -50,18 +49,13 @@ public class StrategicPathfindingBot : MonoBehaviour
         
         // Анализ уровня
         LevelAnalysisResult analysis = AnalyzeLevel();
-        Debug.Log($"Analysis: {analysis.AvailableDirectionTilesCount} direction tiles, {analysis.HasJumpTiles} jump tiles");
+        Debug.Log($"Analysis: {analysis.AvailableDirectionTilesCount} direction tiles");
 
         // Выбор стратегии
         if (analysis.HasDirectionTiles && analysis.AvailableDirectionTilesCount > 0)
         {
             Debug.Log("Using Direction Tile strategy");
             yield return StartCoroutine(SolveWithDirectionTiles(analysis));
-        }
-        else if (analysis.HasJumpTiles)
-        {
-            Debug.Log("Using Jump Tile strategy");
-            // yield return StartCoroutine(SolveWithJumpTiles(analysis));
         }
         else
         {
@@ -74,12 +68,10 @@ public class StrategicPathfindingBot : MonoBehaviour
     {
         LevelAnalysisResult result = new LevelAnalysisResult();
         
-        // Находим ВСЕ поворотные тайлы на сцене и сохраняем ссылки
+        // Находим ВСЕ поворотные тайлы на сцене
         availableDirectionTiles = new List<GameObject>(GameObject.FindGameObjectsWithTag(directionTileTag));
         result.AvailableDirectionTilesCount = availableDirectionTiles.Count;
         result.HasDirectionTiles = result.AvailableDirectionTilesCount > 0;
-
-        result.HasJumpTiles = GameObject.FindGameObjectsWithTag(jumpTileTag).Length > 0;
 
         return result;
     }
@@ -87,20 +79,21 @@ public class StrategicPathfindingBot : MonoBehaviour
     // ОСНОВНАЯ СТРАТЕГИЯ ДЛЯ ВЕКТОРОВ
     private IEnumerator SolveWithDirectionTiles(LevelAnalysisResult analysis)
     {
-        // 1. Находим финиш
+        toolPlacements.Clear();
+        
         Vector3 finishPos = FindFinishPosition();
         Vector3 startPos = cubeController.InitialPosition;
         Vector3 startDir = cubeController.InitialDirection;
 
         Debug.Log($"Start: {startPos}, Finish: {finishPos}, StartDir: {startDir}");
 
-        // 2. Ищем все возможные пути
+        // Ищем все возможные пути
         List<GridPath> allPaths = new List<GridPath>();
         FindAllPaths(startPos, startDir, finishPos, new List<Vector3>(), 0, allPaths, analysis.AvailableDirectionTilesCount);
 
         Debug.Log($"Found {allPaths.Count} possible paths");
 
-        // 3. Фильтруем и выбираем лучший
+        // Выбираем лучший путь
         var feasiblePaths = allPaths.Where(p => p.requiredRotations <= analysis.AvailableDirectionTilesCount).ToList();
         
         if (feasiblePaths.Count == 0)
@@ -112,46 +105,134 @@ public class StrategicPathfindingBot : MonoBehaviour
         GridPath bestPath = feasiblePaths.OrderBy(p => p.requiredRotations).First();
         Debug.Log($"Best path: {bestPath.requiredRotations} rotations, {bestPath.cells.Count} steps");
 
-        // 4. Визуализируем путь для дебага
-        foreach (var cell in bestPath.cells)
-        {
-            Debug.DrawLine(cell, cell + Vector3.up * 2, Color.green, 5f);
-        }
+        // АНАЛИЗИРУЕМ ГДЕ НУЖНЫ ПОВОРОТЫ И КАКИЕ
+        AnalyzeRequiredRotations(bestPath);
 
-        // 5. Реализуем путь
-        yield return StartCoroutine(ImplementDirectionPath(bestPath));
+        // РЕАЛИЗУЕМ ПУТЬ: сначала настраиваем тулы, потом двигаем куба
+        yield return StartCoroutine(ImplementPathWithTools(bestPath));
     }
 
-    // РЕКУРСИВНЫЙ ПОИСК ВСЕХ ПУТЕЙ
+    // АНАЛИЗИРУЕМ ГДЕ НУЖНЫ ПОВОРОТЫ
+    private void AnalyzeRequiredRotations(GridPath path)
+    {
+        Debug.Log("Analyzing required rotations...");
+        
+        Vector3 currentDir = cubeController.InitialDirection;
+        
+        for (int i = 0; i < path.cells.Count - 1; i++)
+        {
+            Vector3 currentCell = path.cells[i];
+            Vector3 nextCell = path.cells[i + 1];
+            
+            // Определяем необходимое направление для перехода к следующей клетке
+            Vector3 requiredDir = (nextCell - currentCell).normalized;
+            
+            // Если направление не совпадает с текущим - нужен поворот
+            if (Vector3.Angle(currentDir, requiredDir) > 5f)
+            {
+                Debug.Log($"Rotation needed at cell {i} ({currentCell}): {currentDir} -> {requiredDir}");
+                
+                // Сохраняем информацию для поворота
+                toolPlacements.Add(new ToolPlacement {
+                    cellPosition = currentCell,
+                    currentDirection = currentDir,
+                    requiredDirection = requiredDir
+                });
+                
+                currentDir = requiredDir; // Обновляем текущее направление
+            }
+        }
+    }
+
+    // РЕАЛИЗАЦИЯ ПУТИ С НАСТРОЙКОЙ ТУЛОВ
+    private IEnumerator ImplementPathWithTools(GridPath path)
+    {
+        finalActions = new List<System.Action>();
+        
+        // 1. ФАЗА НАСТРОЙКИ ТУЛОВ - показываем решение
+        Debug.Log("=== PHASE 1: SETUP TOOLS ===");
+        
+        if (toolPlacements.Count > 0)
+        {
+            Debug.Log($"Need to place {toolPlacements.Count} tools");
+            
+            foreach (var placement in toolPlacements)
+            {
+                // Находим свободный тайл для использования
+                GameObject availableTile = FindAvailableDirectionTile();
+                if (availableTile != null)
+                {
+                    // Добавляем действие по установке и повороту тайла
+                    finalActions.Add(() => {
+                        Debug.Log($"Placing tool at {placement.cellPosition}, rotating to {placement.requiredDirection}");
+                        PlaceAndRotateTool(availableTile, placement.cellPosition, placement.requiredDirection);
+                    });
+                }
+            }
+        }
+        else
+        {
+            Debug.Log("No tools needed for this path");
+        }
+
+        // 2. ФАЗА ДВИЖЕНИЯ - запускаем куба по готовому пути
+        Debug.Log("=== PHASE 2: MOVEMENT ===");
+        
+        foreach (var cell in path.cells)
+        {
+            if (cell != cubeController.InitialPosition)
+            {
+                finalActions.Add(() => {
+                    cubeController.ExecuteBotMove(cell, cubeController.InitialDirection);
+                });
+            }
+        }
+
+        // Включаем режим редактирования и выполняем ВСЕ действия
+        gridMover.ForceEnableEditMode();
+        yield return StartCoroutine(ExecutePath());
+        gridMover.ForceDisableEditMode();
+    }
+
+    // ПОИСК СВОБОДНОГО ТАЙЛА ДЛЯ ИСПОЛЬЗОВАНИЯ
+    private GameObject FindAvailableDirectionTile()
+    {
+        if (availableDirectionTiles.Count == 0) return null;
+        
+        // Берем первый доступный тайл
+        GameObject tile = availableDirectionTiles[0];
+        availableDirectionTiles.RemoveAt(0);
+        return tile;
+    }
+
+    // УСТАНОВКА И ПОВОРОТ ТАЙЛА
+    private void PlaceAndRotateTool(GameObject tool, Vector3 position, Vector3 direction)
+    {
+        // Перемещаем тайл в нужную позицию
+        tool.transform.position = GetSnappedPosition(position);
+        
+        // Поворачиваем тайл в нужном направлении
+        tool.transform.rotation = Quaternion.LookRotation(direction);
+        
+        Debug.Log($"Tool {tool.name} placed at {position} facing {direction}");
+    }
+
+    // РЕКУРСИВНЫЙ ПОИСК ПУТЕЙ (без изменений)
     private void FindAllPaths(Vector3 currentCell, Vector3 currentDir, Vector3 targetCell, 
                             List<Vector3> currentPath, int rotationsUsed, 
                             List<GridPath> foundPaths, int maxRotations)
     {
-        // Добавляем текущую клетку в путь
         currentPath.Add(currentCell);
 
-        // ПРОВЕРЯЕМ ДОСТИГЛИ ЛИ МЫ ФИНИША (ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД)
         if (IsFinishTrigger(currentCell))
         {
-            Debug.Log($"✓ Path found! Rotations: {rotationsUsed}, Steps: {currentPath.Count}");
             foundPaths.Add(new GridPath(new List<Vector3>(currentPath), rotationsUsed));
             return;
         }
 
-        // Проверяем ограничения
-        if (rotationsUsed > maxRotations) 
-        {
-            Debug.Log($"Path abandoned: too many rotations ({rotationsUsed})");
-            return;
-        }
-        
-        if (currentPath.Count > 20) 
-        {
-            Debug.Log($"Path abandoned: too long ({currentPath.Count} steps)");
-            return;
-        }
+        if (rotationsUsed > maxRotations || currentPath.Count > 20) return;
 
-        // Пробуем двигаться вперед
+        // Движение вперед
         Vector3 nextCell = GetSnappedPosition(currentCell + currentDir * tileSize);
         if (IsCellValid(nextCell) && !currentPath.Contains(nextCell))
         {
@@ -159,10 +240,9 @@ public class StrategicPathfindingBot : MonoBehaviour
                         rotationsUsed, foundPaths, maxRotations);
         }
 
-        // Пробуем повороты (если есть доступные тайлы)
+        // Повороты
         if (rotationsUsed < maxRotations)
         {
-            // Поворот направо (90°)
             Vector3 rightDir = Quaternion.Euler(0, 90, 0) * currentDir;
             Vector3 rightCell = GetSnappedPosition(currentCell + rightDir * tileSize);
             
@@ -172,7 +252,6 @@ public class StrategicPathfindingBot : MonoBehaviour
                             rotationsUsed + 1, foundPaths, maxRotations);
             }
 
-            // Поворот налево (-90°)
             Vector3 leftDir = Quaternion.Euler(0, -90, 0) * currentDir;
             Vector3 leftCell = GetSnappedPosition(currentCell + leftDir * tileSize);
             
@@ -184,17 +263,11 @@ public class StrategicPathfindingBot : MonoBehaviour
         }
     }
 
-    // ПРОВЕРКА ВАЛИДНОСТИ КЛЕТКИ
     private bool IsCellValid(Vector3 cellPosition)
     {
-        // Проверяем землю
         bool hasGround = Physics.Raycast(cellPosition + Vector3.up * 0.5f, Vector3.down, 1.2f, groundLayer);
-        if (!hasGround) return false;
-
-        // Проверяем препятствия
         bool hasObstacle = Physics.CheckBox(cellPosition, new Vector3(0.4f, 0.4f, 0.4f), Quaternion.identity, obstacleLayer);
-        
-        return !hasObstacle;
+        return hasGround && !hasObstacle;
     }
 
     private Vector3 GetSnappedPosition(Vector3 position)
@@ -208,75 +281,16 @@ public class StrategicPathfindingBot : MonoBehaviour
 
     private Vector3 FindFinishPosition()
     {
-        GameObject finish = GameObject.FindGameObjectWithTag("Finish");
+        GameObject finish = GameObject.FindGameObjectsWithTag("Finish").FirstOrDefault();
         return finish != null ? finish.transform.position : Vector3.zero;
-    }
-
-    // ПРОСТОЙ УРОВЕНЬ - ПРЯМО К ФИНИШУ
-    private IEnumerator SolveSimpleLevel()
-    {
-        Debug.Log("Solving simple level - checking direct path");
-        
-        Vector3 finishPos = FindFinishPosition();
-        Vector3 currentPos = cubeController.InitialPosition;
-        Vector3 currentDir = cubeController.InitialDirection;
-
-        // Пробуем пройти прямо к финишу
-        List<Vector3> path = new List<Vector3>();
-        path.Add(currentPos);
-
-        while (!IsFinishTrigger(currentPos) && path.Count < 20) // Используем проверку финиша
-        {
-            Vector3 nextCell = GetSnappedPosition(currentPos + currentDir * tileSize);
-            
-            if (!IsCellValid(nextCell))
-            {
-                Debug.LogError("Simple path blocked! Cannot reach finish directly.");
-                yield break;
-            }
-
-            path.Add(nextCell);
-            currentPos = nextCell;
-        }
-
-        // Выполняем путь
-        finalActions = new List<System.Action>();
-        foreach (var cell in path)
-        {
-            if (cell != cubeController.InitialPosition)
-            {
-                finalActions.Add(() => {
-                    cubeController.ExecuteBotMove(cell, cubeController.InitialDirection);
-                });
-            }
-        }
-
-        yield return StartCoroutine(ExecutePath());
-    }
-
-    // РЕАЛИЗАЦИЯ ПУТИ С ПОМОЩЬЮ ТАЙЛОВ
-    private IEnumerator ImplementDirectionPath(GridPath path)
-    {
-        finalActions = new List<System.Action>();
-
-        foreach (var cell in path.cells)
-        {
-            if (cell != cubeController.InitialPosition)
-            {
-                finalActions.Add(() => {
-                    cubeController.ExecuteBotMove(cell, cubeController.InitialDirection);
-                });
-            }
-        }
-
-        yield return StartCoroutine(ExecutePath());
     }
 
     private IEnumerator ExecutePath()
     {
+        Debug.Log($"Executing {finalActions.Count} actions...");
+        
         foreach (var action in finalActions)
         {
-            // Проверяем не достигли ли мы уже финиша
             if (IsFinishTrigger(transform.position))
             {
                 Debug.Log("Finish reached during execution!");
@@ -285,31 +299,69 @@ public class StrategicPathfindingBot : MonoBehaviour
             
             action.Invoke();
             yield return new WaitForSeconds(setupWaitTime);
-
-            // Проверяем снова после выполнения действия
+            
             if (IsFinishTrigger(transform.position))
             {
                 Debug.Log("Finish reached after action!");
                 yield break;
             }
         }
+    }
+    private IEnumerator SolveSimpleLevel()
+    {
+        Debug.Log("Solving simple level - direct movement");
         
-        // Финальная проверка
-        if (IsFinishTrigger(transform.position))
+        Vector3 finishPos = FindFinishPosition();
+        Vector3 currentPos = cubeController.InitialPosition;
+        Vector3 currentDir = cubeController.InitialDirection;
+
+        Debug.Log($"Start: {currentPos}, Finish: {finishPos}, Dir: {currentDir}");
+
+        // Просто двигаемся прямо к финишу
+        List<Vector3> path = new List<Vector3>();
+        path.Add(currentPos);
+
+        int maxSteps = Mathf.CeilToInt(Vector3.Distance(currentPos, finishPos) / tileSize) + 5;
+        
+        for (int step = 0; step < maxSteps; step++)
         {
-            Debug.Log("Finish reached after all actions!");
+            if (IsFinishTrigger(currentPos))
+            {
+                Debug.Log("Reached finish during path planning!");
+                break;
+            }
+
+            Vector3 nextCell = GetSnappedPosition(currentPos + currentDir * tileSize);
+            
+            if (!IsCellValid(nextCell))
+            {
+                Debug.LogError($"Path blocked at step {step}! Cell: {nextCell}");
+                yield break;
+            }
+
+            path.Add(nextCell);
+            currentPos = nextCell;
         }
-        else
+
+        Debug.Log($"Planned path with {path.Count} steps");
+        
+        // Выполняем путь
+        finalActions = new List<System.Action>();
+        for (int i = 1; i < path.Count; i++)
         {
-            Debug.LogWarning("Path execution completed but finish not reached!");
+            Vector3 targetCell = path[i];
+            finalActions.Add(() => {
+                cubeController.ExecuteBotMove(targetCell, cubeController.InitialDirection);
+            });
         }
+
+        yield return StartCoroutine(ExecutePath());
     }
 
     // ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ
     public class LevelAnalysisResult
     {
         public bool HasDirectionTiles;
-        public bool HasJumpTiles;
         public int AvailableDirectionTilesCount;
     }
 
@@ -323,5 +375,12 @@ public class StrategicPathfindingBot : MonoBehaviour
             cells = pathCells;
             requiredRotations = rotations;
         }
+    }
+
+    public class ToolPlacement
+    {
+        public Vector3 cellPosition;
+        public Vector3 currentDirection;
+        public Vector3 requiredDirection;
     }
 }

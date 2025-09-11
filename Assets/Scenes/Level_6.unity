@@ -8187,7 +8187,7 @@ MonoBehaviour:
   isGrounded: 1
   InitialPosition: {x: 0, y: 0, z: 0}
   RB: {fileID: 0}
-  startEnabled: 1
+  startEnabled: 0
   jumpTileTag: JumpTile
   jumpTileHighlightColor: {r: 0, g: 1, b: 0, a: 1}
 --- !u!114 &908340936
@@ -8266,6 +8266,7 @@ MonoBehaviour:
   cubeController: {fileID: 908340935}
   gridMover: {fileID: 908340947}
   setupWaitTime: 0.1
+  movementWaitTime: 0.3
   directionTileTag: Vector
   jumpTileTag: Jumper
   groundLayer:
