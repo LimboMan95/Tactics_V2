@@ -480,7 +480,7 @@ private void Update()
     #endregion
 
     #region Utility Methods
-    private Vector3 GetSnappedPosition(Vector3 position)
+    public Vector3 GetSnappedPosition(Vector3 position)
     {
         return new Vector3(
             Mathf.Round(position.x / tileSize) * tileSize,

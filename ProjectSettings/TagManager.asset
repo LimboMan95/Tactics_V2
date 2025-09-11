@@ -11,6 +11,7 @@ TagManager:
   - Fragile
   - Frigle
   - Speed
+  - FragileTile
   layers:
   - Default
   - TransparentFX

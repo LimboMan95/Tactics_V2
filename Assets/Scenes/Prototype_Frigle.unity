@@ -1982,9 +1982,33 @@ PrefabInstance:
       propertyPath: respawnTime
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolRespawnTime
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolLayer.m_Bits
+      value: 128
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolWarningColor.b
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolWarningColor.g
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolWarningColor.r
+      value: 0.9294118
+      objectReference: {fileID: 0}
     - target: {fileID: 4403493950155960141, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
       propertyPath: m_Name
       value: Tile_fragile (2)
+      objectReference: {fileID: 0}
+    - target: {fileID: 4403493950155960141, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: m_TagString
+      value: FragileTile
       objectReference: {fileID: 0}
     - target: {fileID: 6983619829676458677, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
       propertyPath: m_LocalPosition.x
@@ -5018,9 +5042,33 @@ PrefabInstance:
       propertyPath: respawnTime
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolRespawnTime
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolLayer.m_Bits
+      value: 128
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolWarningColor.b
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolWarningColor.g
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolWarningColor.r
+      value: 0.9294118
+      objectReference: {fileID: 0}
     - target: {fileID: 4403493950155960141, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
       propertyPath: m_Name
       value: Tile_fragile
+      objectReference: {fileID: 0}
+    - target: {fileID: 4403493950155960141, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: m_TagString
+      value: FragileTile
       objectReference: {fileID: 0}
     - target: {fileID: 6983619829676458677, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
       propertyPath: m_LocalPosition.x
@@ -8301,13 +8349,17 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  fragileTileTag: Fragile
+  fragileTileTag: FragileTile
   speedTileTag: Speed
-  speedTileHighlightColor: {r: 1, g: 0.015686274, b: 0.6717291, a: 1}
+  speedTileHighlightColor: {r: 0, g: 1, b: 1, a: 1}
   speedMultiplier: 2
   speedBoostDuration: 3
+  InitialDirection: {x: 0, y: 0, z: 0}
   isRotating: 0
   isGrounded: 1
+  InitialPosition: {x: 0, y: 0, z: 0}
+  RB: {fileID: 0}
+  startEnabled: 1
   jumpTileTag: Jumper
   jumpTileHighlightColor: {r: 0, g: 1, b: 1, a: 1}
 --- !u!114 &908340936
@@ -12583,9 +12635,33 @@ PrefabInstance:
       propertyPath: respawnTime
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolRespawnTime
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolLayer.m_Bits
+      value: 128
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolWarningColor.b
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolWarningColor.g
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1082915856218018642, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: toolWarningColor.r
+      value: 0.9294118
+      objectReference: {fileID: 0}
     - target: {fileID: 4403493950155960141, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
       propertyPath: m_Name
       value: Tile_fragile (1)
+      objectReference: {fileID: 0}
+    - target: {fileID: 4403493950155960141, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
+      propertyPath: m_TagString
+      value: FragileTile
       objectReference: {fileID: 0}
     - target: {fileID: 6983619829676458677, guid: 943271fa988fd2d4c8361e6b95567e24, type: 3}
       propertyPath: m_LocalPosition.x

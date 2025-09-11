@@ -66,13 +66,14 @@ private float originalSpeed;
 public bool IsSpeedBoosted => isSpeedBoosted;
 private Coroutine speedBoostCoroutine;
 
-    private Rigidbody rb;
+[HideInInspector]
+public Vector3 InitialDirection;
+
     [SerializeField] private bool isRotating = false;
     [SerializeField] private bool isGrounded = true;
     private Vector3 lastGridPosition;
     private GameObject lastHighlightedTile;
     private Color originalTileColor;
-    private Vector3 initialPosition;
     private Quaternion initialRotation;
     private Vector3 visualPointerLocalPosition;
     private Quaternion visualPointerLocalRotation;
@@ -82,8 +83,9 @@ private Coroutine speedBoostCoroutine;
     private Vector3 tileEntryPoint;
     private bool isOnDirectionTile;
     public bool IsGrounded => isGrounded;
-    public Vector3 InitialPosition => initialPosition;
-public Rigidbody RB => rb;
+    public Vector3 InitialPosition;
+public Rigidbody RB;
+public bool startEnabled = true;
 public bool IsMovementEnabled => movementEnabled;
  private MaterialPropertyBlock materialBlock;
     private Color originalColor;
@@ -109,18 +111,28 @@ private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameOb
 
     void Start()
     {
-        
+    RB = GetComponent<Rigidbody>();
+    InitialPosition = transform.position;
+    // Добавьте эту строку
+    InitialDirection = transform.forward;
+    movementEnabled = startEnabled; 
         editModeChecker = FindAnyObjectByType<GridObjectMover>();
-        if(mainPointer != null && currentDirection == Vector3.zero)
-        {
-            currentDirection = mainPointer.forward;
-        }
+         if (mainPointer != null)
+    {
+        currentDirection = mainPointer.forward;
+        InitialDirection = currentDirection; // ← СИНХРОНИЗАЦИЯ!
+    }
+    else
+    {
+        currentDirection = Vector3.forward;
+        InitialDirection = currentDirection; // ← СИНХРОНИЗАЦИЯ!
+    }
 
-        rb = GetComponent<Rigidbody>();
-        rb.freezeRotation = true;
-        rb.useGravity = false;
+        RB = GetComponent<Rigidbody>();
+        RB.freezeRotation = true;
+        RB.useGravity = false;
 
-        initialPosition = transform.position;
+        InitialPosition = transform.position;
         initialRotation = transform.rotation;
 
         if (visualPointer != null && mainPointer != null)
@@ -129,11 +141,11 @@ private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameOb
             visualPointerLocalRotation = Quaternion.Inverse(mainPointer.rotation) * visualPointer.rotation;
         }
 
-        currentDirection = mainPointer.forward;
+        
         lastGridPosition = GetSnappedPosition(transform.position);
         isGrounded = CheckGround();
         halfTileSize = tileSize / 2f;
-        Debug.Log($"Rigidbody: isKinematic={rb.isKinematic}, UseGravity={rb.useGravity}, Drag={rb.linearDamping}");
+        Debug.Log($"Rigidbody: isKinematic={RB.isKinematic}, UseGravity={RB.useGravity}, Drag={RB.linearDamping}");
 
          materialBlock = new MaterialPropertyBlock();
         GetComponent<MeshRenderer>().GetPropertyBlock(materialBlock);
@@ -161,6 +173,7 @@ public float GetBaseSpeed()
 
 void CheckSpeedTileUnderneath()
 {
+    if (string.IsNullOrEmpty(speedTileTag)) return;
     if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
     {
         if (hit.collider.CompareTag(speedTileTag))
@@ -177,6 +190,23 @@ public void ActivateSpeedBoost()
         StopCoroutine(speedBoostCoroutine);
     
     speedBoostCoroutine = StartCoroutine(SpeedBoostRoutine());
+}
+public void ExecuteBotMove(Vector3 targetPosition, Vector3 targetDirection)
+{
+    // Для бота - только телепортация и обновление направления
+    transform.position = targetPosition;
+    currentDirection = targetDirection;
+    
+    // Обновляем поинтеры без изменения вращения куба
+    if (mainPointer != null)
+    {
+        mainPointer.forward = currentDirection;
+        // Сохраняем локальные offset'ы чтобы не сломать визуал
+        visualPointer.position = mainPointer.TransformPoint(visualPointerLocalPosition);
+        visualPointer.rotation = mainPointer.rotation * visualPointerLocalRotation;
+    }
+    
+    Debug.Log($"Bot teleported to {targetPosition}, direction: {currentDirection}");
 }
 
 // ДОБАВЛЯЕМ КОРУТИНУ СКОРОСТИ
@@ -226,8 +256,8 @@ private IEnumerator JumpRoutine()
     movementEnabled = false;
     
     // Останавливаем физику
-    rb.linearVelocity = Vector3.zero;
-    rb.angularVelocity = Vector3.zero;
+    RB.linearVelocity = Vector3.zero;
+    RB.angularVelocity = Vector3.zero;
     
     // Запоминаем начальную позицию и рассчитываем целевую
     jumpStartPosition = transform.position;
@@ -235,9 +265,9 @@ private IEnumerator JumpRoutine()
     jumpTargetPosition = GetSnappedPosition(jumpTargetPosition); // Снэпим цель к сетке
     
     // Временно отключаем проверку земли чтобы избежать падения
-    bool wasGravityEnabled = rb.useGravity;
-    rb.useGravity = false;
-    bool wasFreezeRotation = rb.freezeRotation;
+    bool wasGravityEnabled = RB.useGravity;
+    RB.useGravity = false;
+    bool wasFreezeRotation = RB.freezeRotation;
     
     float elapsed = 0f;
     
@@ -252,7 +282,7 @@ private IEnumerator JumpRoutine()
         newPosition.y = jumpStartPosition.y + curveValue * jumpHeight;
         
         // Плавное перемещение
-        rb.MovePosition(newPosition);
+        RB.MovePosition(newPosition);
         
         yield return null;
     }
@@ -260,11 +290,11 @@ private IEnumerator JumpRoutine()
     // Гарантированно становимся в конечную позицию
     Vector3 finalPosition = GetSnappedPosition(jumpTargetPosition);
     finalPosition.y = jumpStartPosition.y; // Возвращаем исходную высоту
-    rb.MovePosition(finalPosition);
+    RB.MovePosition(finalPosition);
     
     // Восстанавливаем физические настройки
-    rb.useGravity = wasGravityEnabled;
-    rb.freezeRotation = wasFreezeRotation;
+    RB.useGravity = wasGravityEnabled;
+    RB.freezeRotation = wasFreezeRotation;
     
     // Восстанавливаем состояние
     movementEnabled = wasMovementEnabled;
@@ -335,6 +365,7 @@ public void SetRotatingState(bool state) {
 
 void CheckJumpTileUnderneath()
 {
+    if (string.IsNullOrEmpty(jumpTileTag)) return;
     if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
     {
         if (hit.collider.CompareTag(jumpTileTag))
@@ -379,7 +410,7 @@ void HighlightJumpTile(GameObject tile)
         return;
     }
     
-    if (other.CompareTag(directionTileTag))
+    if (!string.IsNullOrEmpty(directionTileTag) && other.CompareTag(directionTileTag))
     {
         lastDirectionTile = other.gameObject;
         tileEntryPoint = transform.position;
@@ -387,17 +418,17 @@ void HighlightJumpTile(GameObject tile)
     }
     
     // Добавляем обработку тайлов прыжка
-    if (other.CompareTag(jumpTileTag))
+    if (!string.IsNullOrEmpty(jumpTileTag) && other.CompareTag(jumpTileTag))
     {
         lastJumpTile = other.gameObject;
         jumpTileEntryPoint = transform.position;
         isOnJumpTile = true;
     }
-     if (other.CompareTag(fragileTileTag))
+     if (!string.IsNullOrEmpty(fragileTileTag) && other.CompareTag(fragileTileTag))
     {
         // Логика теперь в самом тайле, можно оставить пустое
     }
-    if (other.CompareTag(speedTileTag))
+    if (!string.IsNullOrEmpty(speedTileTag) && other.CompareTag(speedTileTag))
     {
         ActivateSpeedBoost();
     }
@@ -503,43 +534,45 @@ void HighlightJumpTile(GameObject tile)
 {
     movementEnabled = false;
     
-    if (TryGetComponent<Rigidbody>(out var rb))
+    if (TryGetComponent<Rigidbody>(out var RB))
     {
         // Для kinematic bodies только останавливаем вращение
-        if (!rb.isKinematic)
+        if (!RB.isKinematic)
         {
-            rb.linearVelocity = Vector3.zero;
+            RB.linearVelocity = Vector3.zero;
         }
-        rb.angularVelocity = Vector3.zero;
+        RB.angularVelocity = Vector3.zero;
     }
 }
 public void ResetPhysics()
 {
-    if (TryGetComponent<Rigidbody>(out var rb))
+    if (TryGetComponent<Rigidbody>(out var RB))
     {
-        if (!rb.isKinematic)
+        if (!RB.isKinematic)
         {
-            rb.linearVelocity = Vector3.zero;
+            RB.linearVelocity = Vector3.zero;
         }
-        rb.angularVelocity = Vector3.zero;
-        rb.freezeRotation = true;
+        RB.angularVelocity = Vector3.zero;
+        RB.freezeRotation = true;
     }
     isGrounded = CheckGround();
 }
 
-    public void UpdateDirection(Vector3 newDirection)
+   public void UpdateDirection(Vector3 newDirection)
 {
     currentDirection = newDirection;
     if(mainPointer != null) mainPointer.forward = newDirection;
     if(visualPointer != null) visualPointer.forward = newDirection;
+    
+    Debug.Log($"Direction updated to: {newDirection}");
 }
 public void Revive()
 {
-    if (TryGetComponent<Rigidbody>(out var rb))
+    if (TryGetComponent<Rigidbody>(out var RB))
     {
-        rb.WakeUp();
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
+        RB.WakeUp();
+        RB.linearVelocity = Vector3.zero;
+        RB.angularVelocity = Vector3.zero;
     }
     
     // Сброс цветового эффекта
@@ -609,11 +642,11 @@ public void FullReset() {
     // Восстанавливаем хрупкие тайлы ← ДОБАВИТЬ ЭТО
     ResetAllFragileTiles();
     
-    if (TryGetComponent<Rigidbody>(out var rb)) {
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        rb.isKinematic = false;
-        rb.freezeRotation = true;
+    if (TryGetComponent<Rigidbody>(out var RB)) {
+        RB.linearVelocity = Vector3.zero;
+        RB.angularVelocity = Vector3.zero;
+        RB.isKinematic = false;
+        RB.freezeRotation = true;
     }
     
     // Принудительная проверка земли
@@ -636,15 +669,15 @@ public void ForceUpdateDirection(Vector3 newDirection)
 
     public void ResetToInitialState()
     {
-        transform.position = initialPosition;
+        transform.position = InitialPosition;
         transform.rotation = initialRotation;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
+        RB.linearVelocity = Vector3.zero;
+        RB.angularVelocity = Vector3.zero;
         currentDirection = mainPointer.forward;
         isRotating = false;
         isGrounded = true;
-        rb.freezeRotation = true;
-        rb.useGravity = false;
+        RB.freezeRotation = true;
+        RB.useGravity = false;
          // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
     ResetSpeedBoost();
      // Восстанавливаем хрупкие тайлы ← ДОБАВИТЬ ЭТО
@@ -678,7 +711,7 @@ public void ForceUpdateDirection(Vector3 newDirection)
             {
                 StartCollision();
             }
-            rb.linearVelocity = Vector3.zero;
+            RB.linearVelocity = Vector3.zero;
         }
         else
         {
@@ -686,7 +719,7 @@ public void ForceUpdateDirection(Vector3 newDirection)
             {
                 EndCollision();
             }
-            rb.linearVelocity = currentDirection * speed;
+            RB.linearVelocity = currentDirection * speed;
         }
     }
 
@@ -764,7 +797,7 @@ bool ShouldSnapToGrid()
         if (isRotating) yield break;
         
         isRotating = true;
-        rb.linearVelocity = Vector3.zero;
+        RB.linearVelocity = Vector3.zero;
 
         Quaternion startRotation = transform.rotation;
         Quaternion targetRotation = Quaternion.LookRotation(newDirection);
@@ -789,7 +822,7 @@ bool ShouldSnapToGrid()
     IEnumerator RotateOnCollision()
     {
         isRotating = true;
-        rb.linearVelocity = Vector3.zero;
+        RB.linearVelocity = Vector3.zero;
 
         RaycastHit hit;
         Physics.Raycast(transform.position, currentDirection, out hit, checkDistance, obstacleMask);
@@ -889,16 +922,16 @@ bool ShouldSnapToGrid()
 
     void StartFalling()
     {
-        rb.freezeRotation = false;
-        rb.useGravity = true;
+        RB.freezeRotation = false;
+        RB.useGravity = true;
     }
 
   void SnapToGrid() {
     // Снэп только при почти нулевой скорости
-    if (rb.linearVelocity.magnitude < 0.1f) {
+    if (RB.linearVelocity.magnitude < 0.1f) {
         Vector3 snappedPos = GetSnappedPosition(transform.position);
         snappedPos.y = transform.position.y;
-        rb.MovePosition(snappedPos); // Плавное перемещение
+        RB.MovePosition(snappedPos); // Плавное перемещение
     }
 }
 
@@ -924,8 +957,8 @@ public void ForceGroundedState()
     isGrounded = true;
     
     // Дополнительные действия для корректного состояния:
-    rb.freezeRotation = true;
-    rb.useGravity = false;
+    RB.freezeRotation = true;
+    RB.useGravity = false;
     
     // Принудительно снэпаем к сетке, если нужно
     SnapToGrid();
