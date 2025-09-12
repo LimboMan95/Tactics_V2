@@ -8178,7 +8178,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   fragileTileTag: FragileTile
-  speedTileTag: SpeedTile
+  speedTileTag: Speed
   speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   speedMultiplier: 2
   speedBoostDuration: 3
@@ -8188,7 +8188,7 @@ MonoBehaviour:
   InitialPosition: {x: 0, y: 0, z: 0}
   RB: {fileID: 0}
   startEnabled: 0
-  jumpTileTag: JumpTile
+  jumpTileTag: Jumper
   jumpTileHighlightColor: {r: 0, g: 1, b: 0, a: 1}
 --- !u!114 &908340936
 MonoBehaviour:
