@@ -295,6 +295,9 @@ private IEnumerator JumpRoutine()
     // Восстанавливаем физические настройки
     RB.useGravity = wasGravityEnabled;
     RB.freezeRotation = wasFreezeRotation;
+    CheckImmediateTileActivation(); // ← ВАЖНО!
+     yield return new WaitForSeconds(0.1f); // 100ms должно хватить
+    yield return new WaitForFixedUpdate();
     
     // Восстанавливаем состояние
     movementEnabled = wasMovementEnabled;
@@ -304,6 +307,33 @@ private IEnumerator JumpRoutine()
     isGrounded = CheckGround();
     
     Debug.Log("Jump completed! Grounded: " + isGrounded);
+}
+private void CheckImmediateTileActivation()
+{
+    if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 0.5f))
+    {
+        if (hit.collider.CompareTag(directionTileTag) && !isRotating)
+        {
+            // Немедленно обрабатываем поворотный тайл
+            Vector3 tileDirection = hit.collider.transform.forward;
+            if (Vector3.Angle(currentDirection, tileDirection) > 5f)
+            {
+                StartCoroutine(RotateToDirection(tileDirection));
+                isOnDirectionTile = false;
+            }
+        }
+        else if (hit.collider.CompareTag(jumpTileTag) && !isJumping)
+        {
+            // Немедленно прыгаем с прыжкового тайла
+            PerformJump();
+            isOnJumpTile = false;
+        }
+        else if (hit.collider.CompareTag(speedTileTag))
+        {
+            // Немедленно активируем скорость
+            ActivateSpeedBoost();
+        }
+    }
 }
 
 
