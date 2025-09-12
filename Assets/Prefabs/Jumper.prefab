@@ -20,6 +20,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 7
       objectReference: {fileID: 0}
+    - target: {fileID: 4403493950155960141, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_TagString
+      value: Jumper
+      objectReference: {fileID: 0}
     - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
       propertyPath: m_LocalScale.y
       value: 0.05
@@ -64,6 +68,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8242192015454965856, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: m_IsTrigger
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -91,7 +99,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   tileSize: {x: 1, y: 1}
   centerOnTile: 1
-  yOffset: 0
+  yOffset: 0.05
   snapToGround: 1
   lockYPosition: 1
   autoAdjustHeight: 1
