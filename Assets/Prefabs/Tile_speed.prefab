@@ -123,9 +123,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   tileSize: {x: 1, y: 1}
   centerOnTile: 1
-  yOffset: 0
+  yOffset: 0.05
   snapToGround: 1
-  lockYPosition: 0
+  lockYPosition: 1
   autoAdjustHeight: 1
   useFixedSnapping: 0
   gridAnchor: {x: 0, y: 0}

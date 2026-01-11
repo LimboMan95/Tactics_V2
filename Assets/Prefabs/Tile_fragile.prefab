@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 2678965108827193789}
   - component: {fileID: 3168849938113286938}
   - component: {fileID: 8242192015454965856}
+  - component: {fileID: 3454090122352223312}
   - component: {fileID: 1082915856218018642}
   m_Layer: 6
   m_Name: Tile_fragile
@@ -109,6 +110,27 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &3454090122352223312
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4403493950155960141}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0267450d51ef50044a488ae8795f3008, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tileSize: {x: 1, y: 1}
+  centerOnTile: 1
+  yOffset: 0
+  snapToGround: 1
+  lockYPosition: 1
+  autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
+  gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!114 &1082915856218018642
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -122,7 +144,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   breakDelay: 1
-  respawnTime: 3
   tileLength: 1
   warningColor: {r: 0.9299085, g: 1, b: 0, a: 1}
   breakParticles: {fileID: 0}
