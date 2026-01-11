@@ -49,7 +49,7 @@ public float jumpHeight = 1f;
 public float jumpDistance = 2f;
 public float jumpDuration = 0.8f;
 public AnimationCurve jumpCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.5f, 1f), new Keyframe(1, 0));
-
+public float speedBoostJumpMultiplier = 2f; // Во сколько раз длиннее прыжок при ускорении
 private bool isJumping = false;
 private Vector3 jumpStartPosition;
 private Vector3 jumpTargetPosition;
@@ -302,9 +302,22 @@ private IEnumerator JumpRoutine()
     RB.linearVelocity = Vector3.zero;
     RB.angularVelocity = Vector3.zero;
     
+    // ← РАСЧЕТ ДИСТАНЦИИ ПРЫЖКА С УЧЕТОМ УСКОРЕНИЯ
+    float currentJumpDistance = jumpDistance;
+    
+    if (isSpeedBoosted)
+    {
+        currentJumpDistance *= speedBoostJumpMultiplier;
+        Debug.Log($"🚀 Ускоренный прыжок! Дистанция: {jumpDistance} → {currentJumpDistance} (x{speedBoostJumpMultiplier})");
+    }
+    else
+    {
+        Debug.Log($"🔄 Обычный прыжок. Дистанция: {currentJumpDistance}");
+    }
+    
     // Запоминаем начальную позицию и рассчитываем целевую
     jumpStartPosition = transform.position;
-    jumpTargetPosition = jumpStartPosition + currentDirection * jumpDistance;
+    jumpTargetPosition = jumpStartPosition + currentDirection * currentJumpDistance;
     jumpTargetPosition = GetSnappedPosition(jumpTargetPosition); // Снэпим цель к сетке
     
     // Временно отключаем проверку земли чтобы избежать падения
@@ -382,7 +395,7 @@ private IEnumerator JumpRoutine()
         CheckImmediateTileActivation();
     }
     
-    Debug.Log("Jump completed normally. Grounded: " + isGrounded);
+    Debug.Log($"Jump completed. Grounded: {isGrounded}, Boosted: {isSpeedBoosted}");
 }
 private void CheckImmediateTileActivation()
 {
@@ -800,7 +813,7 @@ public void Revive()
 public void StopGame()
 {
     // Останавливаем движение
-    DisableMovement();
+    DisableMovement(); 
     
     // Сбрасываем физику
     ResetPhysics();
