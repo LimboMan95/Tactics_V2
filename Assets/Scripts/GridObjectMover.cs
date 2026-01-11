@@ -196,6 +196,11 @@ private void Update()
     isDragging = false;
     isRotating = false;
     isPermanentlySelected = false;
+    DickControlledCube cube = FindAnyObjectByType<DickControlledCube>();
+    if (cube != null)
+    {
+        cube.ResetAllFragileTiles();
+    }
    
     
     // Выключаем режим редактирования

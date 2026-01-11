@@ -4,7 +4,6 @@ public class FragileTile : MonoBehaviour
 {
     [Header("Настройки хрупкого тайла")]
     public float breakDelay = 1f;     // Через 1 секунду разрушится
-    public float respawnTime = 3f;    // Через 3 секунды возродится
     public float tileLength = 3f;     // Длина тайла в юнитах
 
     [Header("Визуал")]
@@ -28,9 +27,8 @@ public class FragileTile : MonoBehaviour
 
     void Update()
     {
-         // Не обрабатываем логику в режиме редактирования
-    GridObjectMover editModeChecker = FindAnyObjectByType<GridObjectMover>();
-    if (editModeChecker != null && editModeChecker.isInEditMode) return;
+        GridObjectMover editModeChecker = FindAnyObjectByType<GridObjectMover>();
+        if (editModeChecker != null && editModeChecker.isInEditMode) return;
         
         if (isCubeOnTile && !isBroken && cube != null)
         {
@@ -48,39 +46,32 @@ public class FragileTile : MonoBehaviour
             // Проверяем разрушение
             if (Time.time - cubeEnterTime >= breakDelay)
             {
-                BreakTile();
+                BreakTilePermanently(); // ← Теперь навсегда!
             }
         }
     }
 
     void OnTriggerEnter(Collider other)
-{
-    // Проверяем режим редактирования
-    GridObjectMover editModeChecker = FindAnyObjectByType<GridObjectMover>();
-    if (editModeChecker != null && editModeChecker.isInEditMode) return;
-    if (isBroken) return;
-    
-    cube = other.GetComponent<DickControlledCube>();
-    if (cube != null)
     {
-        // ВАЖНО: Устанавливаем флаги и время входа!
-        isCubeOnTile = true;
-        cubeEnterTime = Time.time;
+        GridObjectMover editModeChecker = FindAnyObjectByType<GridObjectMover>();
+        if (editModeChecker != null && editModeChecker.isInEditMode) return;
+        if (isBroken) return;
         
-        // Дополнительная логика проверки скорости
-        float cubeSpeed = cube.GetCurrentSpeed();
-        float normalSpeed = cube.GetBaseSpeed();
-        
-        if (cubeSpeed > normalSpeed + 0.1f)
+        cube = other.GetComponent<DickControlledCube>();
+        if (cube != null)
         {
-            Debug.Log("Куб на ускорении! Успеет проехать! 🚀");
-        }
-        else
-        {
-            Debug.Log("Куб на обычной скорости... Рискует! 😰");
+            isCubeOnTile = true;
+            cubeEnterTime = Time.time;
+            
+            float cubeSpeed = cube.GetCurrentSpeed();
+            float normalSpeed = cube.GetBaseSpeed();
+            
+            if (cubeSpeed > normalSpeed + 0.1f)
+            {
+                Debug.Log("Куб на ускорении! Успеет проехать! 🚀");
+            }
         }
     }
-}
 
     void OnTriggerExit(Collider other)
     {
@@ -91,48 +82,11 @@ public class FragileTile : MonoBehaviour
             isCubeOnTile = false;
             cube = null;
             tileRenderer.material.color = originalColor;
-            Debug.Log("Куб свалил с тайла");
         }
     }
 
-    void OnDisable()
-{
-    // Отменяем все процессы при выключении объекта
-    CancelAllProcesses();
-}
-
-    public void ForceRespawn()
-{
-    // Отменяем все запланированные вызовы
-    CancelInvoke();
-    
-    // Немедленно восстанавливаем тайл
-    tileRenderer.enabled = true;
-    tileCollider.enabled = true;
-    tileRenderer.material.color = originalColor;
-    isBroken = false;
-    isCubeOnTile = false;
-    cube = null;
-    
-    // Останавливаем частицы если они играют
-    if (breakParticles != null && breakParticles.isPlaying)
-        breakParticles.Stop();
-    
-    Debug.Log("Тайл принудительно восстановлен 🔄");
-}
-
-public void CancelAllProcesses()
-{
-    CancelInvoke(); // Отменяем все Invoke вызовы
-    isCubeOnTile = false;
-    cube = null;
-    
-    // Сбрасываем цвет на оригинальный
-    if (tileRenderer != null)
-        tileRenderer.material.color = originalColor;
-}
-
-    private void BreakTile()
+    // ЛОМАЕМ НАВСЕГДА (без восстановления)
+    private void BreakTilePermanently()
     {
         isBroken = true;
         isCubeOnTile = false;
@@ -143,23 +97,43 @@ public void CancelAllProcesses()
         
         // Эффекты разрушения
         if (breakParticles != null) breakParticles.Play();
-        Debug.Log("💥 ТАЙЛ РУХНУЛ! 💥");
+        Debug.Log("💥 ТАЙЛ РАЗРУШЕН НАВСЕГДА! 💥");
         
-        // Восстанавливаем через время
-        Invoke("RespawnTile", respawnTime);
+        // НЕТ Invoke для восстановления!
     }
 
-    private void RespawnTile()
+    // ВОССТАНАВЛИВАЕМ ТОЛЬКО ПРИНУДИТЕЛЬНО (из куба)
+    public void ForceRespawn()
     {
         tileRenderer.enabled = true;
         tileCollider.enabled = true;
         tileRenderer.material.color = originalColor;
         isBroken = false;
+        isCubeOnTile = false;
+        cube = null;
         
-        Debug.Log("Тайл восстановился 🔄");
+        if (breakParticles != null && breakParticles.isPlaying)
+            breakParticles.Stop();
+        
+        Debug.Log("Тайл восстановлен 🔄");
     }
 
-    // Для визуализации в редакторе
+    // Автоматически вызывается при уничтожении объекта
+    void OnDestroy()
+    {
+        CancelAllProcesses();
+    }
+
+    public void CancelAllProcesses()
+    {
+        CancelInvoke();
+        isCubeOnTile = false;
+        cube = null;
+        
+        if (tileRenderer != null)
+            tileRenderer.material.color = originalColor;
+    }
+
     void OnDrawGizmos()
     {
         Gizmos.color = Color.yellow;
