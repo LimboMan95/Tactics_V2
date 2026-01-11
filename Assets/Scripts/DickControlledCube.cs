@@ -233,12 +233,53 @@ private IEnumerator SpeedBoostRoutine()
 
 public void ResetAllFragileTiles()
 {
-    FragileTile[] allFragileTiles = FindObjectsOfType<FragileTile>();
+    // Используем без сортировки - порядок не важен, только быстродействие
+    FragileTile[] allFragileTiles = FindObjectsByType<FragileTile>(FindObjectsSortMode.None);
+    
     foreach (FragileTile tile in allFragileTiles)
     {
-        tile.ForceRespawn();
+        if (tile != null) tile.ForceRespawn();
     }
-    Debug.Log("Все хрупкие тайлы восстановлены");
+    Debug.Log($"Все хрупкие тайлы восстановлены ({allFragileTiles.Length} шт.)");
+}
+
+private void CheckAllImmediateActivations()
+{
+    CheckAllImmediateActivations();
+    CheckAllImmediateActivations();
+}
+
+private bool CheckImmediateFlagActivation()
+{
+    // Проверяем коллайдеры вокруг куба
+    Collider[] colliders = Physics.OverlapSphere(
+        transform.position, 
+        tileSize * 0.6f); // Немного больше чем половина тайла
+    
+    foreach (var collider in colliders)
+    {
+        if (((1 << collider.gameObject.layer) & levelCompleteLayer) != 0)
+        {
+            // Устанавливаем текущий триггер
+            currentFinishTrigger = collider.gameObject;
+            triggerEntryPoint = transform.position;
+            
+            // Проверяем достижение центра
+            if (HasReachedTriggerCenter(collider))
+            {
+                StartCoroutine(CompleteLevelWithDelay(collider.gameObject));
+                return true; // Флаг активирован
+            }
+            else
+            {
+                // Вошли в триггер, но не в центре
+                Debug.Log("Landed on flag edge - will check in OnTriggerStay");
+                return false;
+            }
+        }
+    }
+    
+    return false; // Флаг не найден
 }
 
 
@@ -250,6 +291,8 @@ public void PerformJump()
 }
 private IEnumerator JumpRoutine()
 {
+    if (isJumping || isRotating || !isGrounded) yield break;
+    
     // Сохраняем состояние и отключаем стандартное управление
     isJumping = true;
     bool wasMovementEnabled = movementEnabled;
@@ -271,6 +314,7 @@ private IEnumerator JumpRoutine()
     
     float elapsed = 0f;
     
+    // Процесс прыжка (параболическая траектория)
     while (elapsed < jumpDuration)
     {
         elapsed += Time.deltaTime;
@@ -292,21 +336,53 @@ private IEnumerator JumpRoutine()
     finalPosition.y = jumpStartPosition.y; // Возвращаем исходную высоту
     RB.MovePosition(finalPosition);
     
+    // ← ВАЖНОЕ ИЗМЕНЕНИЕ 1: Сначала проверяем ВСЕ немедленные активации
+    CheckImmediateTileActivation();
+    
+    // ← ВАЖНОЕ ИЗМЕНЕНИЕ 2: Проверяем специально флаг
+    if (CheckImmediateFlagActivation())
+    {
+        Debug.Log("Jump landed on flag - stopping jump sequence");
+        
+        // Восстанавливаем физические настройки
+        RB.useGravity = wasGravityEnabled;
+        RB.freezeRotation = wasFreezeRotation;
+        
+        // НЕ восстанавливаем управление - оставляем выключенным
+        // Флаг уже запустил CompleteLevelWithDelay который остановит все движение
+        isJumping = false;
+        yield break; // ← Прерываем корутину ДО восстановления движения
+    }
+    
     // Восстанавливаем физические настройки
     RB.useGravity = wasGravityEnabled;
     RB.freezeRotation = wasFreezeRotation;
-    CheckImmediateTileActivation(); // ← ВАЖНО!
-     yield return new WaitForSeconds(0.1f); // 100ms должно хватить
+    
+    // Дополнительные задержки для стабилизации (если не попали на флаг)
+    yield return new WaitForSeconds(0.1f);
     yield return new WaitForFixedUpdate();
     
-    // Восстанавливаем состояние
+    // ← ВАЖНОЕ ИЗМЕНЕНИЕ 3: Повторная проверка после стабилизации
+    if (!isRotating && !isJumping)
+    {
+        CheckImmediateTileActivation();
+        CheckImmediateFlagActivation(); // ← Проверяем флаг еще раз
+    }
+    
+    // Восстанавливаем состояние управления
     movementEnabled = wasMovementEnabled;
     isJumping = false;
     
     // Принудительно проверяем землю после приземления
     isGrounded = CheckGround();
     
-    Debug.Log("Jump completed! Grounded: " + isGrounded);
+    // ← ВАЖНОЕ ИЗМЕНЕНИЕ 4: Финальная проверка после восстановления управления
+    if (movementEnabled && !isRotating)
+    {
+        CheckImmediateTileActivation();
+    }
+    
+    Debug.Log("Jump completed normally. Grounded: " + isGrounded);
 }
 private void CheckImmediateTileActivation()
 {
@@ -314,7 +390,6 @@ private void CheckImmediateTileActivation()
     {
         if (hit.collider.CompareTag(directionTileTag) && !isRotating)
         {
-            // Немедленно обрабатываем поворотный тайл
             Vector3 tileDirection = hit.collider.transform.forward;
             if (Vector3.Angle(currentDirection, tileDirection) > 5f)
             {
@@ -322,17 +397,52 @@ private void CheckImmediateTileActivation()
                 isOnDirectionTile = false;
             }
         }
-        else if (hit.collider.CompareTag(jumpTileTag) && !isJumping)
+        // ← ОСТАВЛЯЕМ прыжковые тайлы, но ДОБАВЛЯЕМ проверку центра!
+        else if (hit.collider.CompareTag(jumpTileTag) && !isJumping && !isRotating)
         {
-            // Немедленно прыгаем с прыжкового тайла
-            PerformJump();
-            isOnJumpTile = false;
+            // Проверяем находимся ли мы достаточно близко к центру тайла
+            Vector3 tileCenter = hit.collider.transform.position;
+            float distanceToCenter = Vector3.Distance(
+                new Vector3(transform.position.x, 0, transform.position.z),
+                new Vector3(tileCenter.x, 0, tileCenter.z));
+            
+            // Если в центре тайла (в пределах 30% от размера) - прыгаем
+            if (distanceToCenter <= tileSize * 0.3f)
+            {
+                PerformJump();
+                isOnJumpTile = false;
+            }
+            else
+            {
+                // Если не в центре - запоминаем для обработки в FixedUpdate
+                lastJumpTile = hit.collider.gameObject;
+                jumpTileEntryPoint = transform.position;
+                isOnJumpTile = true;
+            }
         }
         else if (hit.collider.CompareTag(speedTileTag))
         {
-            // Немедленно активируем скорость
             ActivateSpeedBoost();
         }
+    }
+}
+
+private void HandleImmediateFlagActivation(GameObject flag)
+{
+    // Устанавливаем текущий триггер флага
+    currentFinishTrigger = flag;
+    triggerEntryPoint = transform.position;
+    
+    // Немедленно проверяем достижение центра
+    if (HasReachedTriggerCenter(flag.GetComponent<Collider>()))
+    {
+        StartCoroutine(CompleteLevelWithDelay(flag));
+    }
+    else
+    {
+        // Если не в центре, просто отмечаем что вошли в триггер
+        // Дальнейшая проверка будет в OnTriggerStay
+        Debug.Log("Landed on flag but not in center - waiting...");
     }
 }
 
@@ -433,10 +543,20 @@ void HighlightJumpTile(GameObject tile)
 {
     if (editModeChecker != null && editModeChecker.isInEditMode) return;
     
+    Debug.Log($"Trigger enter: {other.gameObject.name}");
+    
     if (((1 << other.gameObject.layer) & levelCompleteLayer) != 0)
     {
+        Debug.Log($"Flag entered: {other.gameObject.name}");
         currentFinishTrigger = other.gameObject;
         triggerEntryPoint = transform.position;
+        
+        // Немедленная проверка при входе
+        if (HasReachedTriggerCenter(other))
+        {
+            Debug.Log("Flag center reached on enter!");
+            StartCoroutine(CompleteLevelWithDelay(other.gameObject));
+        }
         return;
     }
     
@@ -447,56 +567,119 @@ void HighlightJumpTile(GameObject tile)
         isOnDirectionTile = true;
     }
     
-    // Добавляем обработку тайлов прыжка
     if (!string.IsNullOrEmpty(jumpTileTag) && other.CompareTag(jumpTileTag))
     {
         lastJumpTile = other.gameObject;
         jumpTileEntryPoint = transform.position;
         isOnJumpTile = true;
     }
-     if (!string.IsNullOrEmpty(fragileTileTag) && other.CompareTag(fragileTileTag))
+    
+    if (!string.IsNullOrEmpty(fragileTileTag) && other.CompareTag(fragileTileTag))
     {
-        // Логика теперь в самом тайле, можно оставить пустое
+        // логика в самом тайле
     }
+    
     if (!string.IsNullOrEmpty(speedTileTag) && other.CompareTag(speedTileTag))
     {
         ActivateSpeedBoost();
     }
 }
 
- IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
+void OnTriggerStay(Collider other)
+{
+    if (editModeChecker != null && editModeChecker.isInEditMode) return;
+    
+    Debug.Log($"🎯 [OnTriggerStay] Frame: {Time.frameCount}, Object: {other.gameObject.name}");
+    
+    // Проверяем флаг
+    if (currentFinishTrigger != null && other.gameObject == currentFinishTrigger)
     {
-        // Останавливаем куб
-        DisableMovement();
+        Debug.Log($"🎯 Checking flag center in OnTriggerStay...");
         
-        // Уничтожаем флажок (триггер)
-        Destroy(finishTrigger);
-        currentFinishTrigger = null;
-        
-        // Ждем указанное время
-        yield return new WaitForSeconds(levelCompleteDelay);
-        
-        // Показываем UI
-        if (levelCompleteUI != null)
+        if (HasReachedTriggerCenter(other))
         {
-            levelCompleteUI.SetActive(true);
+            Debug.Log($"🎯🎯🎯 CENTER REACHED in OnTriggerStay!");
+            StartCoroutine(CompleteLevelWithDelay(other.gameObject));
         }
-        
-        Debug.Log("Level completed! Flag collected.");
     }
+    
+    // Также проверяем другие тайлы если нужно
+    // Но для флага достаточно проверки выше
+}
 
-     void OnTriggerStay(Collider other)
+public void ForceStopAllMovement()
+{
+    // Останавливаем все корутины движения
+    StopAllCoroutines();
+    
+    // Сбрасываем все флаги состояния
+    isJumping = false;
+    isRotating = false;
+    movementEnabled = false;
+    isOnDirectionTile = false;
+    isOnJumpTile = false;
+    
+    // Останавливаем физику
+    if (RB != null)
     {
-        if (editModeChecker != null && editModeChecker.isInEditMode) return;
-       if (currentFinishTrigger != null && other.gameObject == currentFinishTrigger)
-        {
-            // Проверяем, достигли ли центра триггера
-            if (HasReachedTriggerCenter(other))
-            {
-                StartCoroutine(CompleteLevelWithDelay(other.gameObject));
-            }
-        }
+        RB.linearVelocity = Vector3.zero;
+        RB.angularVelocity = Vector3.zero;
+        RB.isKinematic = true; // Временная блокировка
     }
+    
+    // Снэпаем позицию
+    transform.position = GetSnappedPosition(transform.position);
+    
+    Debug.Log("All movement force-stopped");
+}
+
+IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
+{
+    Debug.Log("🎮 LEVEL COMPLETE STARTED");
+    
+    // 1. Уничтожить флаг
+    Destroy(finishTrigger);
+    currentFinishTrigger = null;
+    
+    // 2. ВЫЗЫВАЕМ ВСЕ ГОТОВЫЕ МЕТОДЫ:
+    
+    // Останавливаем движение (существующий метод)
+    DisableMovement();
+    
+    // Сбрасываем физику (существующий метод)
+    ResetPhysics();
+    
+    // Сбрасываем speed boost (существующий метод)
+    ResetSpeedBoost();
+    
+    // Сбрасываем цвета тайлов (если нужно)
+    ResetAllTileColors();
+    
+    // Сбрасываем дополнительные флаги
+    isJumping = false;
+    isRotating = false;
+    isColliding = false;
+    
+    // Делаем kinematic на всякий случай
+    if (RB != null) RB.isKinematic = true;
+    
+    // Снэпаем позицию
+    transform.position = GetSnappedPosition(transform.position);
+    
+    Debug.Log($"⏳ Waiting {levelCompleteDelay}s...");
+    
+    // 3. Ждем задержку
+    yield return new WaitForSeconds(levelCompleteDelay);
+    
+    // 4. Показываем UI
+    if (levelCompleteUI != null)
+    {
+        levelCompleteUI.SetActive(true);
+        Debug.Log("✅ UI SHOWN");
+    }
+    
+    Debug.Log("🎮 LEVEL COMPLETE FINISHED");
+}
     void OnTriggerExit(Collider other)
 {
     if (editModeChecker != null && editModeChecker.isInEditMode) return;
@@ -624,10 +807,15 @@ public void StopGame()
     
     // Сбрасываем цвета тайлов
     ResetAllTileColors();
-     // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
+    
+    // Сбрасываем ускорение
     ResetSpeedBoost();
-    // Восстанавливаем хрупкие тайлы ← ДОБАВИТЬ ЭТО
+    
+    // Восстанавливаем хрупкие тайлы
     ResetAllFragileTiles();
+    
+    // ← ДОБАВИТЬ: Сброс флага
+    currentFinishTrigger = null;
     
     Debug.Log("Игра остановлена");
 }
@@ -655,10 +843,15 @@ public void ResetAllTileColors()
 
 public void OnStopGameClick()
 {
-    DickControlledCube cube = FindObjectOfType<DickControlledCube>();
+    // Используем FindAnyObjectByType - он быстрее
+    DickControlledCube cube = FindAnyObjectByType<DickControlledCube>();
     if (cube != null)
     {
         cube.StopGame();
+    }
+    else
+    {
+        Debug.LogWarning("No DickControlledCube found in scene!");
     }
 }
 
@@ -667,9 +860,14 @@ public void FullReset() {
     isRotating = false;
     isGrounded = true;
     movementEnabled = false;
-     // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
+    
+    // ← ДОБАВИТЬ: Сброс флага
+    currentFinishTrigger = null;
+    
+    // Сбрасываем ускорение
     ResetSpeedBoost();
-    // Восстанавливаем хрупкие тайлы ← ДОБАВИТЬ ЭТО
+    
+    // Восстанавливаем хрупкие тайлы
     ResetAllFragileTiles();
     
     if (TryGetComponent<Rigidbody>(out var RB)) {
@@ -785,15 +983,18 @@ public void ForceUpdateDirection(Vector3 newDirection)
 }
 
     void OnDisable()
-    {
-        CancelInvoke(); // Отменяем все запланированные вызовы
-        EndCollision(); // Восстанавливаем цвет
-        // Сбрасываем ускорение при выключении ← ДОБАВИТЬ ЭТО
+{
+    CancelInvoke();
+    EndCollision();
+    
+    // ← ДОБАВИТЬ: Сброс ссылки на флаг
+    currentFinishTrigger = null;
+    
     if (isSpeedBoosted)
     {
         ResetSpeedBoost();
     }
-    }
+}
 
 // Новый вспомогательный метод для проверки тайлов
 private bool CheckDirectionTileUnderneath(out Vector3 tileDirection)
