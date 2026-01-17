@@ -507,6 +507,7 @@ GameObject:
   - component: {fileID: 330585547}
   - component: {fileID: 330585548}
   - component: {fileID: 330585549}
+  - component: {fileID: 330585550}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -664,6 +665,54 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   m_MaxRayIntersections: 0
+--- !u!114 &330585550
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 35772efb34f671642af13c6196653f05, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  groundLookPoint: {x: 0, y: 0, z: 0}
+  useFixedPoint: 1
+  lookAtTarget: {fileID: 0}
+  orbitRadius: 15
+  currentVerticalAngle: 0
+  currentHorizontalAngle: 180
+  rotationDuration: 0.5
+  rotationCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  allowKeyboardInput: 1
+  rotateLeftKey: 113
+  rotateRightKey: 101
+  isRotating: 0
+  targetHorizontalAngle: 45
 --- !u!1001 &417610061
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1860,6 +1909,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  speedBoostJumpMultiplier: 2
   fragileTileTag: FragileTile
   speedTileTag: Speed
   speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
@@ -1933,6 +1983,7 @@ MonoBehaviour:
   invalidColor: {r: 1, g: 0.2, b: 0.2, a: 0.7}
   rotationColor: {r: 1, g: 0.8, b: 0.2, a: 0.7}
   disableUIBlocking: 1
+  selectionRadius: 0.5
   isInEditMode: 0
 --- !u!114 &908340948
 MonoBehaviour:
@@ -1949,6 +2000,7 @@ MonoBehaviour:
   cubeController: {fileID: 908340935}
   gridMover: {fileID: 908340947}
   setupWaitTime: 0.1
+  movementWaitTime: 0.3
   directionTileTag: Vector
   jumpTileTag: Jumper
   groundLayer:
