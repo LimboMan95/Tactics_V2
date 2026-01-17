@@ -5172,6 +5172,10 @@ PrefabInstance:
       propertyPath: m_TagString
       value: Jumper
       objectReference: {fileID: 0}
+    - target: {fileID: 5406374947922812223, guid: bec833ddb427faa4eb20bf131e71b077, type: 3}
+      propertyPath: yOffset
+      value: 0.05
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

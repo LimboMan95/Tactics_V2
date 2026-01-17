@@ -2743,6 +2743,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  speedBoostJumpMultiplier: 2
   fragileTileTag: FragileTile
   speedTileTag: Speed
   speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
@@ -5747,6 +5748,10 @@ PrefabInstance:
     - target: {fileID: 5231803318492668971, guid: bec833ddb427faa4eb20bf131e71b077, type: 3}
       propertyPath: m_TagString
       value: Jumper
+      objectReference: {fileID: 0}
+    - target: {fileID: 5406374947922812223, guid: bec833ddb427faa4eb20bf131e71b077, type: 3}
+      propertyPath: yOffset
+      value: 0.05
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

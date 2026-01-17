@@ -32,12 +32,15 @@ public class GridObjectMover : MonoBehaviour
     public Color validColor = new Color(0.2f, 1f, 0.2f, 0.7f);
     public Color invalidColor = new Color(1f, 0.2f, 0.2f, 0.7f);
     public Color rotationColor = new Color(1f, 0.8f, 0.2f, 0.7f);
+    
     [Header("Debug")]
-public bool disableUIBlocking = true; // Временно отключить блокировку UI
-
+    public bool disableUIBlocking = true; // Временно отключить блокировку UI
+    [Header("Selection Settings")]
+public float selectionRadius = 0.5f; // Радиус выбора
 
     private Camera mainCamera;
     private DickControlledCube cubeController;
+    private IsometricCameraRotator cameraRotator; // ← ДОБАВИЛИ ссылку на контроллер камеры
     private GameObject selectedObject;
     private Vector3 originalObjectPosition;
     private int currentRotationIndex;
@@ -45,15 +48,15 @@ public bool disableUIBlocking = true; // Временно отключить б�
     public bool isInEditMode;
     private Renderer[] objectRenderers;
     private Dictionary<Renderer, Material[]> originalMaterials = new Dictionary<Renderer, Material[]>();
-   private bool isObjectSelected = false;
+    private bool isObjectSelected = false;
     private bool isDragging = false;
     private bool isPermanentlySelected = false;
-
 
     private void Awake()
     {
         mainCamera = Camera.main;
         cubeController = GetComponent<DickControlledCube>();
+        cameraRotator = mainCamera.GetComponent<IsometricCameraRotator>(); // ← ИНИЦИАЛИЗИРУЕМ
         tileSize = cubeController.tileSize;
     }
 
@@ -63,34 +66,135 @@ public bool disableUIBlocking = true; // Временно отключить б�
         InitializeUI();
         if (startInEditMode && CanEnterEditMode()) StartEditMode();
     }
-private void Update()
-{
-    HandleEditModeToggle();
-    
-    if (isInEditMode)
+
+    private void Update()
     {
-        HandleObjectSelection();
-        HandleObjectMovement();
-        HandleRotationInput();
+        HandleEditModeToggle();
         
-        // Простая проверка валидности для выбранного объекта
-        if (selectedObject != null && !isDragging && !isRotating)
+        if (isInEditMode)
         {
-            bool isValid = IsPositionValid(selectedObject.transform.position);
-            UpdateObjectVisuals(isValid);
+            HandleObjectSelection();
+            HandleObjectMovement();
+            HandleRotationInput();
+            
+            // Простая проверка валидности для выбранного объекта
+            if (selectedObject != null && !isDragging && !isRotating)
+            {
+                bool isValid = IsPositionValid(selectedObject.transform.position);
+                UpdateObjectVisuals(isValid);
+            }
+        }
+    }
+
+    #region Selection System
+
+    public bool IsPointerOverUI()
+    {
+        // Простая проверка для всех платформ
+        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+    }
+
+   private void HandleObjectSelection()
+{
+    if (!isInEditMode) return;
+    
+    if (Input.GetMouseButtonDown(0))
+    {
+        if (!disableUIBlocking && IsPointerOverUI()) return;
+        
+        // Пробуем обычный Raycast
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        
+        if (Physics.Raycast(ray, out RaycastHit hit, raycastDistance, movableLayer))
+        {
+            ProcessSelection(hit.collider.gameObject);
+            return;
+        }
+        
+        // Если Raycast не сработал, пробуем OverlapSphere в конечной точке луча
+        Vector3 rayEndPoint = ray.origin + ray.direction * raycastDistance;
+        Collider[] colliders = Physics.OverlapSphere(rayEndPoint, selectionRadius, movableLayer);
+        
+        if (colliders.Length > 0)
+        {
+            // Берем ближайший к конечной точке луча
+            GameObject closest = null;
+            float closestDist = float.MaxValue;
+            
+            foreach (var col in colliders)
+            {
+                float dist = Vector3.Distance(rayEndPoint, col.transform.position);
+                if (dist < closestDist)
+                {
+                    closestDist = dist;
+                    closest = col.gameObject;
+                }
+            }
+            
+            ProcessSelection(closest);
+        }
+        else
+        {
+            Debug.Log("No objects found");
         }
     }
 }
 
-
-   #region Selection System
-
-   public bool IsPointerOverUI()
+private void ProcessSelection(GameObject obj)
 {
-    // Простая проверка для всех платформ
-    return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+    if (obj == null) return;
+    
+    Debug.Log($"Selected: {obj.name}");
+    
+    if (selectedObject != obj)
+    {
+        ResetSelection();
+        SelectObject(obj);
+    }
+    
+    originalObjectPosition = selectedObject.transform.position;
+    isDragging = true;
+    isPermanentlySelected = false;
 }
-   
+   /// <summary>
+/// Получаем луч из камеры (стандартный метод)
+/// </summary>
+   private Ray GetCameraRay()
+{
+    // ВАЖНО: ScreenPointToRay автоматически учитывает поворот камеры
+    // Unity сам преобразует экранные координаты в мировое направление
+    return mainCamera.ScreenPointToRay(Input.mousePosition);
+}
+
+    /// <summary>
+    /// Получаем текущий угол камеры для отладки
+    /// </summary>
+    private string GetCameraAngle()
+{
+    if (cameraRotator != null)
+    {
+        try
+        {
+            // Используем рефлексию если публичных свойств нет
+            System.Reflection.FieldInfo horizField = cameraRotator.GetType().GetField("currentHorizontalAngle", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            System.Reflection.FieldInfo vertField = cameraRotator.GetType().GetField("currentVerticalAngle", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+            if (horizField != null && vertField != null)
+            {
+                float horiz = (float)horizField.GetValue(cameraRotator);
+                float vert = (float)vertField.GetValue(cameraRotator);
+                return $"H:{horiz:F1}°, V:{vert:F1}°";
+            }
+        }
+        catch { }
+    }
+    
+    // Запасной вариант: получаем угол из Transform камеры
+    Vector3 euler = mainCamera.transform.eulerAngles;
+    return $"Transform angles: X:{euler.x:F1}°, Y:{euler.y:F1}°, Z:{euler.z:F1}°";
+}
 
     private void StartDragging()
     {
@@ -101,37 +205,6 @@ private void Update()
         originalObjectPosition = selectedObject.transform.position;
     }
 
-    private void HandleDragging()
-    {
-        if (!isDragging || selectedObject == null) return;
-
-        if (Input.GetMouseButton(0))
-        {
-            // Процесс перетаскивания
-            Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out RaycastHit hit, raycastDistance))
-            {
-                Vector3 newPos = GetSnappedPosition(hit.point);
-                newPos.y = selectedObject.transform.position.y;
-                selectedObject.transform.position = newPos;
-                UpdateObjectVisuals(IsPositionValid(newPos));
-            }
-        }
-        else if (Input.GetMouseButtonUp(0))
-        {
-            // Завершение перетаскивания
-            isDragging = false;
-            
-            if (!IsPositionValid(selectedObject.transform.position))
-            {
-                selectedObject.transform.position = originalObjectPosition;
-            }
-            
-            // После перетаскивания объект остается выбранным
-            isPermanentlySelected = true;
-            UpdateObjectVisuals(true);
-        }
-    }
     #endregion
 
     #region UI Methods
@@ -156,16 +229,16 @@ private void Update()
     }
 
     public void ToggleEditMode()
-{
-    if (isInEditMode) 
     {
-        StopEditMode(); // Полный сброс при выходе
+        if (isInEditMode) 
+        {
+            StopEditMode(); // Полный сброс при выходе
+        }
+        else if (CanEnterEditMode()) 
+        {
+            StartEditMode();
+        }
     }
-    else if (CanEnterEditMode()) 
-    {
-        StartEditMode();
-    }
-}
 
     private bool CanEnterEditMode()
     {
@@ -181,200 +254,86 @@ private void Update()
     }
 
     private void StopEditMode()
-{
-    // Принудительно завершаем все операции и сбрасываем состояние
-    if (isDragging && selectedObject != null)
     {
-        // Возвращаем объект на исходную позицию если был в процессе перетаскивания
-        selectedObject.transform.position = originalObjectPosition;
-    }
-    
-    // Сбрасываем все визуальные эффекты
-    ResetSelection();
-    
-    // Сбрасываем все флаги состояния
-    isDragging = false;
-    isRotating = false;
-    isPermanentlySelected = false;
-    DickControlledCube cube = FindAnyObjectByType<DickControlledCube>();
-    if (cube != null)
-    {
-        cube.ResetAllFragileTiles();
-    }
-   
-    
-    // Выключаем режим редактирования
-    isInEditMode = false;
-    
-    Debug.Log("Edit mode deactivated - full reset");
-}
-    #endregion
-
-    #region Object Selection
-    private void HandleObjectSelection()
-{
-    if (!isInEditMode) return;
-    
-    if (Input.GetMouseButtonDown(0))
-    {
-        // ВАЖНО: Проверяем UI только здесь, в момент клика
-        
-        // Временное решение для тестирования
-        if (!disableUIBlocking && IsPointerOverUI())
+        // Принудительно завершаем все операции и сбрасываем состояние
+        if (isDragging && selectedObject != null)
         {
-            Debug.Log("Clicked on UI - ignoring object selection");
-            return;
+            // Возвращаем объект на исходную позицию если был в процессе перетаскивания
+            selectedObject.transform.position = originalObjectPosition;
         }
         
-        
-        var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-        if (Physics.Raycast(ray, out var hit, raycastDistance, movableLayer))
-        {
-            Debug.Log($"Hit object: {hit.collider.gameObject.name}");
-            
-            if (selectedObject != hit.collider.gameObject)
-            {
-                ResetSelection();
-                SelectObject(hit.collider.gameObject);
-            }
-            
-            originalObjectPosition = selectedObject.transform.position;
-            isDragging = true;
-            isPermanentlySelected = false;
-        }
-        else
-        {
-            Debug.Log("Raycast missed movable objects");
-    // ЗАКОММЕНТИРУЙТЕ или УДАЛИТЕ этот блок:
-    // if (isPermanentlySelected)
-    // {
-    //     ResetSelection();
-    // }
-    }
-}
-}
-
-
-  private void SelectObject(GameObject obj)
-{
-    if (obj == null) return;
-
-    // Сначала сбрасываем предыдущий выбор
-    if (selectedObject != null && selectedObject != obj)
-    {
+        // Сбрасываем все визуальные эффекты
         ResetSelection();
-    }
-
-    selectedObject = obj;
-    originalObjectPosition = obj.transform.position;
-
-    // Получаем рендереры
-    objectRenderers = obj.GetComponentsInChildren<Renderer>();
-    if (objectRenderers == null || objectRenderers.Length == 0)
-    {
-        Debug.LogWarning($"No renderers found on {obj.name}");
-        return;
-    }
-
-    // Сохраняем КОПИИ оригинальных материалов
-    originalMaterials.Clear();
-    foreach (var renderer in objectRenderers)
-    {
-        if (renderer == null) continue;
         
-        Material[] materialsCopy = new Material[renderer.materials.Length];
-        for (int i = 0; i < renderer.materials.Length; i++)
+        // Сбрасываем все флаги состояния
+        isDragging = false;
+        isRotating = false;
+        isPermanentlySelected = false;
+        
+        // Восстанавливаем хрупкие тайлы
+        DickControlledCube cube = FindAnyObjectByType<DickControlledCube>();
+        if (cube != null)
         {
-            materialsCopy[i] = new Material(renderer.materials[i]); // Копируем материал
+            cube.ResetAllFragileTiles();
         }
-        originalMaterials[renderer] = materialsCopy;
+        
+        // Выключаем режим редактирования
+        isInEditMode = false;
+        
+        Debug.Log("Edit mode deactivated - full reset");
     }
-
-    // Обновляем визуал с ПРАВИЛЬНОЙ проверкой
-    bool isValid = IsPositionValid(obj.transform.position);
-    UpdateObjectVisuals(isValid);
-
-    // Обновляем UI для поворотных объектов
-    bool isRotatable = ((1 << obj.layer) & rotatableLayer) != 0;
-    UpdateUIState(isRotatable);
-    
-    if (isRotatable)
-    {
-        CalculateCurrentRotationIndex();
-        UpdateRotationVisual();
-    }
-
-    Debug.Log($"Selected: {obj.name}, valid: {isValid}, rotatable: {isRotatable}");
-}
-
-  private void ResetSelection()
-{
-    // Восстанавливаем оригинальные материалы
-    RestoreOriginalMaterials();
-    
-    // Отключаем UI
-    UpdateUIState(false);
-    
-    // Сбрасываем все ссылки и флаги
-    selectedObject = null;
-    objectRenderers = null;
-    isPermanentlySelected = false;
-    isDragging = false;
-    
-    Debug.Log("Selection reset complete");
-}
     #endregion
 
     #region Object Manipulation
     private void HandleObjectMovement()
-{
-    if (!isInEditMode || selectedObject == null || !isDragging) 
-        return;
-
-    if (Input.GetMouseButton(0))
     {
-        // Процесс перетаскивания
-        var ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-        if (Physics.Raycast(ray, out var hit, raycastDistance))
+        if (!isInEditMode || selectedObject == null || !isDragging) 
+            return;
+
+        if (Input.GetMouseButton(0))
         {
-            Vector3 newPos = GetSnappedPosition(hit.point);
-            newPos.y = selectedObject.transform.position.y;
-            selectedObject.transform.position = newPos;
-            UpdateObjectVisuals(IsPositionValid(newPos));
+            // Процесс перетаскивания с учетом поворота камеры
+            Ray ray = GetCameraRay();
+            
+            if (Physics.Raycast(ray, out var hit, raycastDistance))
+            {
+                Vector3 newPos = GetSnappedPosition(hit.point);
+                newPos.y = selectedObject.transform.position.y;
+                selectedObject.transform.position = newPos;
+                UpdateObjectVisuals(IsPositionValid(newPos));
+            }
+        }
+        else if (Input.GetMouseButtonUp(0))
+        {
+            // Завершение перетаскивания
+            isDragging = false;
+            
+            if (!IsPositionValid(selectedObject.transform.position))
+            {
+                selectedObject.transform.position = originalObjectPosition;
+            }
+            
+            // После перетаскивания объект остается выбранным
+            isPermanentlySelected = true;
+            UpdateObjectVisuals(true);
         }
     }
-    else if (Input.GetMouseButtonUp(0))
-    {
-        // Завершение перетаскивания
-        isDragging = false;
-        
-        if (!IsPositionValid(selectedObject.transform.position))
-        {
-            selectedObject.transform.position = originalObjectPosition;
-        }
-        
-        // После перетаскивания объект остается выбранным
-        isPermanentlySelected = true;
-        UpdateObjectVisuals(true);
-    }
-}
-
 
     private void HandleRotationInput()
-{
-    if (!isInEditMode || selectedObject == null || !Input.GetKeyDown(KeyCode.R)) 
-        return;
-    
-    RotateSelectedObject();
-}
+    {
+        if (!isInEditMode || selectedObject == null || !Input.GetKeyDown(KeyCode.R)) 
+            return;
+        
+        RotateSelectedObject();
+    }
 
     public void RotateSelectedObject()
-{
-    if (!isInEditMode || selectedObject == null || isRotating || ((1 << selectedObject.layer) & rotatableLayer) == 0) 
-        return;
-    
-    StartCoroutine(RotateObjectCoroutine(90f));
-}
+    {
+        if (!isInEditMode || selectedObject == null || isRotating || ((1 << selectedObject.layer) & rotatableLayer) == 0) 
+            return;
+        
+        StartCoroutine(RotateObjectCoroutine(90f));
+    }
 
     private IEnumerator RotateObjectCoroutine(float angle)
     {
@@ -406,29 +365,29 @@ private void Update()
 
     #region Visual Feedback
     private void UpdateObjectVisuals(bool isValid, bool isRotating = false)
-{
-    if (objectRenderers == null)
     {
-        Debug.LogWarning("objectRenderers is null!");
-        return;
-    }
-
-    Debug.Log($"Updating visuals: isValid={isValid}, isRotating={isRotating}");
-
-    foreach (var renderer in objectRenderers)
-    {
-        if (renderer == null) continue;
-        
-        Material[] newMaterials = new Material[renderer.materials.Length];
-        for (int i = 0; i < newMaterials.Length; i++)
+        if (objectRenderers == null)
         {
-            newMaterials[i] = new Material(renderer.materials[i]);
-            newMaterials[i].color = isRotating ? rotationColor : (isValid ? validColor : invalidColor);
-            SetMaterialTransparency(newMaterials[i]);
+            Debug.LogWarning("objectRenderers is null!");
+            return;
         }
-        renderer.materials = newMaterials;
+
+        Debug.Log($"Updating visuals: isValid={isValid}, isRotating={isRotating}");
+
+        foreach (var renderer in objectRenderers)
+        {
+            if (renderer == null) continue;
+            
+            Material[] newMaterials = new Material[renderer.materials.Length];
+            for (int i = 0; i < newMaterials.Length; i++)
+            {
+                newMaterials[i] = new Material(renderer.materials[i]);
+                newMaterials[i].color = isRotating ? rotationColor : (isValid ? validColor : invalidColor);
+                SetMaterialTransparency(newMaterials[i]);
+            }
+            renderer.materials = newMaterials;
+        }
     }
-}
 
     private void SetMaterialTransparency(Material mat)
     {
@@ -437,36 +396,38 @@ private void Update()
         mat.EnableKeyword("_ALPHABLEND_ON");
         mat.renderQueue = 3000;
     }
-  public void ResetAllMaterialsInScene()
-{
-    // Просто перезагружаем все рендереры
-    foreach (var renderer in FindObjectsOfType<Renderer>())
+
+    public void ResetAllMaterialsInScene()
     {
-        renderer.enabled = false;
-        renderer.enabled = true;
-    }
-}
-    private void RestoreOriginalMaterials()
-{
-    foreach (var kvp in originalMaterials)
-    {
-        if (kvp.Key != null && kvp.Value != null)
+        // Просто перезагружаем все рендереры
+        foreach (var renderer in FindObjectsOfType<Renderer>())
         {
-            // Уничтожаем все текущие материалы (кроме оригинальных)
-            foreach (var currentMat in kvp.Key.materials)
-            {
-                if (currentMat != null && !System.Array.Exists(kvp.Value, m => m == currentMat))
-                {
-                    Destroy(currentMat);
-                }
-            }
-            
-            // Восстанавливаем оригинальные материалы
-            kvp.Key.materials = kvp.Value;
+            renderer.enabled = false;
+            renderer.enabled = true;
         }
     }
-    originalMaterials.Clear();
-}
+
+    private void RestoreOriginalMaterials()
+    {
+        foreach (var kvp in originalMaterials)
+        {
+            if (kvp.Key != null && kvp.Value != null)
+            {
+                // Уничтожаем все текущие материалы (кроме оригинальных)
+                foreach (var currentMat in kvp.Key.materials)
+                {
+                    if (currentMat != null && !System.Array.Exists(kvp.Value, m => m == currentMat))
+                    {
+                        Destroy(currentMat);
+                    }
+                }
+                
+                // Восстанавливаем оригинальные материалы
+                kvp.Key.materials = kvp.Value;
+            }
+        }
+        originalMaterials.Clear();
+    }
 
     private void UpdateRotationVisual()
     {
@@ -496,10 +457,10 @@ private void Update()
 
     private bool IsPositionValid(Vector3 position)
     {
-         if (!Physics.Raycast(position + Vector3.up * 0.5f, Vector3.down, 1f, cubeController.groundMask))
-    {
-        return false; // Нет земли под объектом
-    }
+        if (!Physics.Raycast(position + Vector3.up * 0.5f, Vector3.down, 1f, cubeController.groundMask))
+        {
+            return false; // Нет земли под объектом
+        }
         
         Vector3 checkPos = position + Vector3.up * 0.1f;
         Collider[] colliders = Physics.OverlapBox(checkPos, Vector3.one * (tileSize * 0.45f));
@@ -521,28 +482,99 @@ private void Update()
     #endregion
 
     public void ForceEnableEditMode()
-{
-    // Если уже в режиме редактирования - ничего не делаем
-    if (isInEditMode) return;
-    
-    // Принудительно включаем режим редактирования
-    isInEditMode = true;
-    
-    // Дополнительные действия при включении
-    Debug.Log("Edit mode FORCED ON");
-    
-    // Сбрасываем выделение при включении
-    ResetSelection();
-}
+    {
+        // Если уже в режиме редактирования - ничего не делаем
+        if (isInEditMode) return;
+        
+        // Принудительно включаем режим редактирования
+        isInEditMode = true;
+        
+        // Дополнительные действия при включении
+        Debug.Log("Edit mode FORCED ON");
+        
+        // Сбрасываем выделение при включении
+        ResetSelection();
+    }
 
-// Этот метод будет привязан к кнопке "Выключить редактирование"
-public void ForceDisableEditMode()
-{
-    if (!isInEditMode) return;
-    
-    // Используем наш улучшенный StopEditMode
-    StopEditMode();
-    
-    Debug.Log("Edit mode FORCED OFF with full cleanup");
-}
+    // Этот метод будет привязан к кнопке "Выключить редактирование"
+    public void ForceDisableEditMode()
+    {
+        if (!isInEditMode) return;
+        
+        // Используем наш улучшенный StopEditMode
+        StopEditMode();
+        
+        Debug.Log("Edit mode FORCED OFF with full cleanup");
+    }
+
+    #region Object Selection Methods (из предыдущего кода)
+    private void SelectObject(GameObject obj)
+    {
+        if (obj == null) return;
+
+        // Сначала сбрасываем предыдущий выбор
+        if (selectedObject != null && selectedObject != obj)
+        {
+            ResetSelection();
+        }
+
+        selectedObject = obj;
+        originalObjectPosition = obj.transform.position;
+
+        // Получаем рендереры
+        objectRenderers = obj.GetComponentsInChildren<Renderer>();
+        if (objectRenderers == null || objectRenderers.Length == 0)
+        {
+            Debug.LogWarning($"No renderers found on {obj.name}");
+            return;
+        }
+
+        // Сохраняем КОПИИ оригинальных материалов
+        originalMaterials.Clear();
+        foreach (var renderer in objectRenderers)
+        {
+            if (renderer == null) continue;
+            
+            Material[] materialsCopy = new Material[renderer.materials.Length];
+            for (int i = 0; i < renderer.materials.Length; i++)
+            {
+                materialsCopy[i] = new Material(renderer.materials[i]); // Копируем материал
+            }
+            originalMaterials[renderer] = materialsCopy;
+        }
+
+        // Обновляем визуал с ПРАВИЛЬНОЙ проверкой
+        bool isValid = IsPositionValid(obj.transform.position);
+        UpdateObjectVisuals(isValid);
+
+        // Обновляем UI для поворотных объектов
+        bool isRotatable = ((1 << obj.layer) & rotatableLayer) != 0;
+        UpdateUIState(isRotatable);
+        
+        if (isRotatable)
+        {
+            CalculateCurrentRotationIndex();
+            UpdateRotationVisual();
+        }
+
+        Debug.Log($"Selected: {obj.name}, valid: {isValid}, rotatable: {isRotatable}");
+    }
+
+    private void ResetSelection()
+    {
+        // Восстанавливаем оригинальные материалы
+        RestoreOriginalMaterials();
+        
+        // Отключаем UI
+        UpdateUIState(false);
+        
+        // Сбрасываем все ссылки и флаги
+        selectedObject = null;
+        objectRenderers = null;
+        isPermanentlySelected = false;
+        isDragging = false;
+        
+        Debug.Log("Selection reset complete");
+    }
+    #endregion
 }

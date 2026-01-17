@@ -24,6 +24,10 @@ PrefabInstance:
       propertyPath: m_TagString
       value: Jumper
       objectReference: {fileID: 0}
+    - target: {fileID: 4503615374152242777, guid: 971995da6d7cf014787fc658878d893c, type: 3}
+      propertyPath: yOffset
+      value: 0.05
+      objectReference: {fileID: 0}
     - target: {fileID: 6983619829676458677, guid: 971995da6d7cf014787fc658878d893c, type: 3}
       propertyPath: m_LocalScale.y
       value: 0.05
