@@ -16,7 +16,7 @@ public class IsometricCameraRotator : MonoBehaviour
     [Tooltip("Текущий вертикальный угол (читается из Transform)")]
     [SerializeField] private float currentVerticalAngle;
     
-    [SerializeField] private float currentHorizontalAngle = 45f;
+    [SerializeField] private float currentHorizontalAngle = 180f;
     
     [Header("Animation")]
     public float rotationDuration = 0.5f;
