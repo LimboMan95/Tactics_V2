@@ -1737,9 +1737,27 @@ MonoBehaviour:
   groundLookPoint: {x: 0, y: 0, z: 0}
   useFixedPoint: 1
   lookAtTarget: {fileID: 0}
+  minOrbitRadius: 9
+  maxOrbitRadius: 15
   orbitRadius: 15
   currentVerticalAngle: 0
   currentHorizontalAngle: 180
+  zoomSpeed: 10
+  touchZoomSensitivity: 0.5
+  zoomSmoothTime: 0.2
+  scrollSpeed: 10
+  touchScrollSensitivity: 2
+  enableScroll: 1
+  enableEdgeScroll: 0
+  scrollBounds: {x: 10, y: 10}
+  maxZoomForScroll: 10
+  scrollOffset: {x: 0, y: 0, z: 0}
+  enableTouchInput: 1
+  touchDeadZone: 10
+  enableMouseDrag: 1
+  mouseDragSensitivity: 1.5
+  useAdaptiveRotationPivot: 1
+  adaptivePivotTransitionSpeed: 5
   rotationDuration: 0.5
   rotationCurve:
     serializedVersion: 2

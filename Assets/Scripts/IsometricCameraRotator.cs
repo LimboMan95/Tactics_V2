@@ -11,8 +11,8 @@ public class IsometricCameraRotator : MonoBehaviour
     public Transform lookAtTarget;
     
     [Header("Camera Orbit Settings")]
-    public float minOrbitRadius = 5f;    // Минимальное расстояние (близко)
-    public float maxOrbitRadius = 30f;   // Максимальное расстояние (далеко)
+    public float minOrbitRadius = 9f;    // Минимальное расстояние (близко)
+    public float maxOrbitRadius = 15f;   // Максимальное расстояние (далеко)
     [SerializeField] private float orbitRadius = 15f;
     
     [Tooltip("Текущий вертикальный угол (читается из Transform)")]
@@ -31,7 +31,7 @@ public class IsometricCameraRotator : MonoBehaviour
     public float scrollSpeed = 10f;
     public float touchScrollSensitivity = 2f; // Чувствительность тач-скролла
     public bool enableScroll = true;
-    public bool enableEdgeScroll = true; // НОВОЕ: Скролл при подъезде к границам экрана
+    public bool enableEdgeScroll = true; // Скролл при подъезде к границам экрана
     public Vector2 scrollBounds = new Vector2(50f, 50f); // Границы скролла по X и Z
     public float maxZoomForScroll = 20f; // При каком зуме скролл включается (меньше = ближе)
     [SerializeField] private Vector3 scrollOffset = Vector3.zero; // Текущее смещение от центра
@@ -51,7 +51,7 @@ public class IsometricCameraRotator : MonoBehaviour
     private Vector2 lastMousePosition;
     
     [Header("Rotation Pivot Settings")]
-    public bool useAdaptiveRotationPivot = true; // НОВОЕ: Вращение вокруг текущей точки середины экрана
+    public bool useAdaptiveRotationPivot = true; // Вращение вокруг текущей точки середины экрана
     public float adaptivePivotTransitionSpeed = 5f; // Скорость перехода к адаптивной точке
     private Vector3 adaptiveRotationPivot; // Текущая адаптивная точка вращения
     private Vector3 targetAdaptivePivot; // Целевая адаптивная точка
@@ -75,31 +75,59 @@ public class IsometricCameraRotator : MonoBehaviour
     public float CurrentOrbitRadius => orbitRadius;
     
     void Start()
+{
+    // ЧИТАЕМ текущий вертикальный угол из Transform камеры
+    currentVerticalAngle = transform.eulerAngles.x;
+    
+    // Если угол больше 180, корректируем (Unity хранит углы 0-360)
+    if (currentVerticalAngle > 180f)
+        currentVerticalAngle -= 360f;
+    
+    // ВЫЧИСЛЯЕМ начальный горизонтальный угол из позиции камеры
+    Vector3 lookPoint = GetCurrentLookPoint();
+    Vector3 cameraToCenter = lookPoint - transform.position;  // Вектор от камеры к центру
+    cameraToCenter.y = 0;
+    
+    if (cameraToCenter.magnitude > 0.01f)
     {
-        // ЧИТАЕМ текущий вертикальный угол из Transform камеры
-        currentVerticalAngle = transform.eulerAngles.x;
+        // Нормализуем вектор
+        cameraToCenter.Normalize();
         
-        // Если угол больше 180, корректируем (Unity хранит углы 0-360)
-        if (currentVerticalAngle > 180f)
-            currentVerticalAngle -= 360f;
+        // Вычисляем угол вектора (куда смотрит камера - к центру)
+        // atan2(x, z) дает угол между осью Z+ и вектором
+        float angle = Mathf.Atan2(cameraToCenter.x, cameraToCenter.z) * Mathf.Rad2Deg;
         
-        // Инициализируем таргет зума текущим радиусом
-        targetOrbitRadius = orbitRadius;
+        currentHorizontalAngle = angle;
+        targetHorizontalAngle = angle;
         
-        // Инициализируем адаптивную точку вращения
-        adaptiveRotationPivot = GetCurrentLookPoint();
-        targetAdaptivePivot = adaptiveRotationPivot;
-        
-        Debug.Log($"Начальный вертикальный угол камеры: {currentVerticalAngle}°");
-        
-        if (!useFixedPoint && lookAtTarget == null)
-        {
-            GameObject player = GameObject.FindGameObjectWithTag("Player");
-            if (player != null) lookAtTarget = player.transform;
-        }
-        
-        UpdateCameraPosition();
+        Debug.Log($"Вычислен начальный горизонтальный угол: {currentHorizontalAngle:F1}°");
+        Debug.Log($"Вектор камера->центр: {cameraToCenter}, длина: {cameraToCenter.magnitude}");
     }
+    else
+    {
+        Debug.LogWarning("Камера слишком близко к точке взгляда");
+        // По умолчанию 180° (смотрит на юг)
+        currentHorizontalAngle = 180f;
+        targetHorizontalAngle = 180f;
+    }
+    
+    // Инициализируем таргет зума текущим радиусом
+    targetOrbitRadius = orbitRadius;
+    
+    // Инициализируем адаптивную точку вращения
+    adaptiveRotationPivot = GetCurrentLookPoint();
+    targetAdaptivePivot = adaptiveRotationPivot;
+    
+    Debug.Log($"Старт: вертикаль={currentVerticalAngle}°, горизонт={currentHorizontalAngle}°, радиус={orbitRadius}");
+    
+    if (!useFixedPoint && lookAtTarget == null)
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null) lookAtTarget = player.transform;
+    }
+    
+    UpdateCameraPosition();
+}
     
     void Update()
     {
@@ -471,47 +499,79 @@ public class IsometricCameraRotator : MonoBehaviour
     public void RotateLeft()
     {
         if (!IsInGameMode() || isRotating) return;
-        targetHorizontalAngle = currentHorizontalAngle - 90f;
+        targetHorizontalAngle = Mathf.Repeat(currentHorizontalAngle - 90f, 360f);
         StartCoroutine(RotateCameraRoutine());
     }
     
     public void RotateRight()
     {
         if (!IsInGameMode() || isRotating) return;
-        targetHorizontalAngle = currentHorizontalAngle + 90f;
+        targetHorizontalAngle = Mathf.Repeat(currentHorizontalAngle + 90f, 360f);
         StartCoroutine(RotateCameraRoutine());
     }
     
-    private IEnumerator RotateCameraRoutine()
+   private IEnumerator RotateCameraRoutine()
+{
+    isRotating = true;
+    
+    float startAngle = currentHorizontalAngle;
+    
+    // Определяем точку вращения
+    Vector3 lookPoint;
+    if (useAdaptiveRotationPivot)
     {
-        isRotating = true;
-        
-        float startAngle = currentHorizontalAngle;
-        
-        // Используем адаптивную точку если включено, иначе обычную точку взгляда
-        Vector3 rotationPivot = useAdaptiveRotationPivot ? adaptiveRotationPivot : GetCurrentLookPoint();
-        
-        float elapsedTime = 0f;
-        
-        while (elapsedTime < rotationDuration)
-        {
-            elapsedTime += Time.deltaTime;
-            float progress = elapsedTime / rotationDuration;
-            float curvedProgress = rotationCurve.Evaluate(progress);
-            
-            currentHorizontalAngle = Mathf.Lerp(startAngle, targetHorizontalAngle, curvedProgress);
-            
-            // Обновляем позицию и вращение
-            UpdateCameraPosition(rotationPivot);
-            
-            yield return null;
-        }
-        
-        currentHorizontalAngle = targetHorizontalAngle;
-        UpdateCameraPosition(rotationPivot);
-        
-        isRotating = false;
+        lookPoint = adaptiveRotationPivot;
     }
+    else
+    {
+        lookPoint = useFixedPoint ? groundLookPoint : 
+                   (lookAtTarget != null ? lookAtTarget.position : Vector3.zero);
+    }
+    
+    float elapsedTime = 0f;
+    
+    while (elapsedTime < rotationDuration)
+    {
+        elapsedTime += Time.deltaTime;
+        float progress = elapsedTime / rotationDuration;
+        float curvedProgress = rotationCurve.Evaluate(progress);
+        
+        currentHorizontalAngle = Mathf.LerpAngle(startAngle, targetHorizontalAngle, curvedProgress);
+        
+        // Обновляем позицию и вращение (как в старом коде)
+        UpdateCameraPosition(lookPoint);
+        UpdateCameraRotation(); // ← ВАЖНО!
+        
+        yield return null;
+    }
+    
+    currentHorizontalAngle = targetHorizontalAngle;
+    UpdateCameraPosition(lookPoint);
+    UpdateCameraRotation();
+    
+    // Обновляем скролл-оффсет чтобы камера продолжала смотреть на ту же точку
+    if (useFixedPoint)
+    {
+        scrollOffset = lookPoint - groundLookPoint;
+    }
+    else if (lookAtTarget != null)
+    {
+        scrollOffset = lookPoint - lookAtTarget.position;
+    }
+    
+    // Ограничиваем границы
+    scrollOffset.x = Mathf.Clamp(scrollOffset.x, -scrollBounds.x, scrollBounds.x);
+    scrollOffset.z = Mathf.Clamp(scrollOffset.z, -scrollBounds.y, scrollBounds.y);
+    
+    // Обновляем адаптивную точку
+    if (useAdaptiveRotationPivot)
+    {
+        adaptiveRotationPivot = GetCurrentLookPoint();
+        targetAdaptivePivot = adaptiveRotationPivot;
+    }
+    
+    isRotating = false;
+}
     
     private Vector3 GetCurrentLookPoint()
     {
@@ -522,20 +582,21 @@ public class IsometricCameraRotator : MonoBehaviour
         return basePoint + scrollOffset;
     }
     
-    private void UpdateCameraPosition(Vector3 center)
-    {
-        float horizontalRad = currentHorizontalAngle * Mathf.Deg2Rad;
-        
-        // Вычисляем горизонтальную позицию
-        float xPos = center.x + Mathf.Sin(horizontalRad) * orbitRadius;
-        float zPos = center.z + Mathf.Cos(horizontalRad) * orbitRadius;
-        
-        // Вычисляем вертикальную позицию с учетом угла наклона
-        float horizontalDistance = orbitRadius;
-        float yPos = center.y + Mathf.Tan(currentVerticalAngle * Mathf.Deg2Rad) * horizontalDistance;
-        
-        transform.position = new Vector3(xPos, yPos, zPos);
-    }
+   private void UpdateCameraPosition(Vector3 center)
+{
+    float horizontalRad = currentHorizontalAngle * Mathf.Deg2Rad;
+    
+    // Вычисляем горизонтальную позицию
+    // МЕНЯЕМ ЗНАКИ: минус вместо плюса
+    float xPos = center.x - Mathf.Sin(horizontalRad) * orbitRadius;
+    float zPos = center.z - Mathf.Cos(horizontalRad) * orbitRadius;
+    
+    // Вычисляем вертикальную позицию с учетом угла наклона
+    float horizontalDistance = orbitRadius;
+    float yPos = center.y + Mathf.Tan(currentVerticalAngle * Mathf.Deg2Rad) * horizontalDistance;
+    
+    transform.position = new Vector3(xPos, yPos, zPos);
+}
     
     private void UpdateCameraPosition()
     {
@@ -551,7 +612,7 @@ public class IsometricCameraRotator : MonoBehaviour
     {
         Vector3 lookPoint = GetCurrentLookPoint();
         
-        // Вычисляем направление к точке
+        // Вычисляем направление к точки
         Vector3 directionToTarget = lookPoint - transform.position;
         
         // Создаем вращение с нужным вертикальным углом
@@ -601,7 +662,8 @@ public class IsometricCameraRotator : MonoBehaviour
         float vertical = euler.x;
         if (vertical > 180f) vertical -= 360f;
         
-        Debug.Log($"Камера: Горизонт={currentHorizontalAngle:F1}°, Вертикаль={vertical:F1}°, Радиус={orbitRadius:F1}, Скролл={scrollOffset}");
+        Debug.Log($"Камера: Горизонт={currentHorizontalAngle:F1}°, Вертикаль={vertical:F1}°, Радиус={orbitRadius:F1}");
+        Debug.Log($"Скролл={scrollOffset}");
         if (useAdaptiveRotationPivot)
         {
             Debug.Log($"Адаптивная точка: {adaptiveRotationPivot}, Цель: {targetAdaptivePivot}");
