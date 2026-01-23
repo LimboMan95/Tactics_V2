@@ -189,7 +189,7 @@ public class IsometricCameraRotator : MonoBehaviour
             // При сильном отдалении сбрасываем скролл
             if (targetOrbitRadius >= maxOrbitRadius * 0.9f)
             {
-                scrollOffset = Vector3.zero;
+                //scrollOffset = Vector3.zero;
             }
             
             // Обновляем адаптивную точку при зуме
@@ -212,18 +212,25 @@ public class IsometricCameraRotator : MonoBehaviour
     }
     
     private void UpdateTargetAdaptivePivotFromMouse()
+{
+    // Если уже есть скролл - не меняем адаптивную точку при зуме
+    // Камера будет зумить вокруг текущей точки скролла
+    if (scrollOffset.magnitude > 0.1f)
     {
-        // Получаем точку на земле под курсором мыши
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
-        
-        if (groundPlane.Raycast(ray, out float distance))
-        {
-            Vector3 pointOnGround = ray.GetPoint(distance);
-            targetAdaptivePivot = pointOnGround;
-            isAdaptingPivot = true;
-        }
+        return; // Просто выходим, ничего не делаем
     }
+    
+    // Только если скролла нет - обновляем адаптивную точку под курсором
+    Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+    Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
+    
+    if (groundPlane.Raycast(ray, out float distance))
+    {
+        Vector3 pointOnGround = ray.GetPoint(distance);
+        targetAdaptivePivot = pointOnGround;
+        isAdaptingPivot = true;
+    }
+}
     
     private bool HandlePinchZoom()
     {
