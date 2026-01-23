@@ -31,7 +31,7 @@ public class IsometricCameraRotator : MonoBehaviour
     public float scrollSpeed = 10f;
     public float touchScrollSensitivity = 2f; // Чувствительность тач-скролла
     public bool enableScroll = true;
-    public bool enableEdgeScroll = true; // Скролл при подъезде к границам экрана
+    public bool enableEdgeScroll = false; // Скролл при подъезде к границам экрана
     public Vector2 scrollBounds = new Vector2(50f, 50f); // Границы скролла по X и Z
     public float maxZoomForScroll = 20f; // При каком зуме скролл включается (меньше = ближе)
     [SerializeField] private Vector3 scrollOffset = Vector3.zero; // Текущее смещение от центра
@@ -172,6 +172,73 @@ public class IsometricCameraRotator : MonoBehaviour
             UpdateCameraRotation();
         }
     }
+
+    public void ResetCameraToDefaultSmooth(float duration = 1f)
+{
+    StartCoroutine(ResetCameraRoutine(duration));
+}
+
+private IEnumerator ResetCameraRoutine(float duration)
+{
+    // Запоминаем начальные значения
+    float startRadius = targetOrbitRadius;
+    float targetRadius = maxOrbitRadius;
+    
+    float startAngle = currentHorizontalAngle;
+    float targetAngle = 0f; // ← Или твой изначальный угол
+    
+    Vector3 startScroll = scrollOffset;
+    Vector3 targetScroll = Vector3.zero;
+    
+    Debug.Log($"Начало сброса: старт зум={startRadius}, цель зум={targetRadius}, угол {startAngle}°→{targetAngle}°");
+    
+    float elapsedTime = 0f;
+    
+    while (elapsedTime < duration)
+    {
+        elapsedTime += Time.deltaTime;
+        float progress = elapsedTime / duration;
+        float curvedProgress = Mathf.SmoothStep(0f, 1f, progress);
+        
+        // Плавно интерполируем ТАРГЕТ зума
+        targetOrbitRadius = Mathf.Lerp(startRadius, targetRadius, curvedProgress);
+        
+        // Плавно интерполируем угол
+        currentHorizontalAngle = Mathf.LerpAngle(startAngle, targetAngle, curvedProgress);
+        
+        // Плавно интерполируем скролл
+        scrollOffset = Vector3.Lerp(startScroll, targetScroll, curvedProgress);
+        
+        // Обновляем позицию камеры
+        UpdateCameraPosition();
+        
+        yield return null;
+    }
+    
+    // Финальные значения
+    orbitRadius = targetRadius;
+    targetOrbitRadius = targetRadius;
+    zoomVelocity = 0f;
+    
+    currentHorizontalAngle = targetAngle;
+    targetHorizontalAngle = targetAngle;
+    
+    scrollOffset = targetScroll;
+    
+    // Сбрасываем адаптивную точку
+    if (useAdaptiveRotationPivot)
+    {
+        adaptiveRotationPivot = GetCurrentLookPoint();
+        targetAdaptivePivot = adaptiveRotationPivot;
+        isAdaptingPivot = false;
+    }
+    
+    // Финальное обновление
+    UpdateCameraPosition();
+    UpdateCameraRotation();
+    
+    Debug.Log($"Камера плавно сброшена: зум={orbitRadius}, угол={currentHorizontalAngle}°, скролл={scrollOffset}");
+}
     
     private bool HandleZoom()
     {
