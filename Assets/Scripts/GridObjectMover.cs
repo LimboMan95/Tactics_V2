@@ -467,6 +467,7 @@ private void ProcessSelection(GameObject obj)
 
         foreach (var col in colliders)
         {
+            if (col.GetComponent<FragileTile>() != null) return false;
             if (col.gameObject == selectedObject || 
                 ((1 << col.gameObject.layer) & cubeController.groundMask) != 0)
                 continue;

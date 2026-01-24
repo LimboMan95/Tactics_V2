@@ -52,26 +52,38 @@ public class FragileTile : MonoBehaviour
     }
 
     void OnTriggerEnter(Collider other)
+{
+    GridObjectMover editModeChecker = FindAnyObjectByType<GridObjectMover>();
+    if (editModeChecker != null && editModeChecker.isInEditMode) return;
+    if (isBroken) return;
+    
+    cube = other.GetComponent<DickControlledCube>();
+    if (cube != null)
     {
-        GridObjectMover editModeChecker = FindAnyObjectByType<GridObjectMover>();
-        if (editModeChecker != null && editModeChecker.isInEditMode) return;
-        if (isBroken) return;
-        
-        cube = other.GetComponent<DickControlledCube>();
-        if (cube != null)
+        // ← ТУТ ДОБАВЛЯЕМ НОВУЮ ЛОГИКУ!
+        // Проверяем: прыжок БЕЗ ускорения = мгновенное разрушение
+        if (cube.isJumping && !cube.IsSpeedBoosted)
         {
-            isCubeOnTile = true;
-            cubeEnterTime = Time.time;
-            
-            float cubeSpeed = cube.GetCurrentSpeed();
-            float normalSpeed = cube.GetBaseSpeed();
-            
-            if (cubeSpeed > normalSpeed + 0.1f)
-            {
-                Debug.Log("Куб на ускорении! Успеет проехать! 🚀");
-            }
+            Debug.Log("💥 Прыжок БЕЗ ускорения! Мгновенное разрушение!");
+            BreakTilePermanently();
+            return;
+        }
+        
+        // Все остальные случаи - обычная логика
+        isCubeOnTile = true;
+        cubeEnterTime = Time.time;
+        
+        // Логи для отладки
+        if (cube.isJumping && cube.IsSpeedBoosted)
+        {
+            Debug.Log("🚀 Прыжок С ускорением! Проверяем успеет ли проехать...");
+        }
+        else if (cube.IsSpeedBoosted)
+        {
+            Debug.Log("⚡ Только ускорение! Проверяем успеет ли проехать...");
         }
     }
+}
 
     void OnTriggerExit(Collider other)
     {

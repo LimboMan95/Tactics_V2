@@ -50,7 +50,7 @@ public float jumpDistance = 2f;
 public float jumpDuration = 0.8f;
 public AnimationCurve jumpCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.5f, 1f), new Keyframe(1, 0));
 public float speedBoostJumpMultiplier = 2f; // Во сколько раз длиннее прыжок при ускорении
-private bool isJumping = false;
+public bool isJumping = false;
 private Vector3 jumpStartPosition;
 private Vector3 jumpTargetPosition;
 [Header("Fragile Tile Settings")]
