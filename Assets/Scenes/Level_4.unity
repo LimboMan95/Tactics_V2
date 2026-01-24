@@ -4440,6 +4440,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Bot
       objectReference: {fileID: 0}
+    - target: {fileID: 949497727629288738, guid: 4e1e4aa782ccabf46a9c41ff745cc2a8, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 1254299303552754952, guid: 4e1e4aa782ccabf46a9c41ff745cc2a8, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
@@ -8573,6 +8577,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   speedBoostJumpMultiplier: 2
+  isJumping: 0
   fragileTileTag: FragileTile
   speedTileTag: Speed
   speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}

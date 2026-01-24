@@ -79,34 +79,5 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 4403493950155960141, guid: 971995da6d7cf014787fc658878d893c, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 5501195590911846461}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 971995da6d7cf014787fc658878d893c, type: 3}
---- !u!1 &5231803318492668971 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 4403493950155960141, guid: 971995da6d7cf014787fc658878d893c, type: 3}
-  m_PrefabInstance: {fileID: 8468811345810656102}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &5501195590911846461
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5231803318492668971}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0267450d51ef50044a488ae8795f3008, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  tileSize: {x: 1, y: 1}
-  centerOnTile: 1
-  yOffset: 0.05
-  snapToGround: 1
-  lockYPosition: 1
-  autoAdjustHeight: 1
-  useFixedSnapping: 0
-  gridAnchor: {x: 0, y: 0}
-  gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
