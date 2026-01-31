@@ -1,3 +1,4 @@
+#if UNITY_EDITOR // В самом верху файла, ПЕРЕД using
 using UnityEditor;
 using UnityEngine;
 
@@ -77,3 +78,4 @@ public class SceneViewCameraController : MonoBehaviour
         lastPanPosition = Input.mousePosition;
     }
 }
+#endif // В самом конце файла
