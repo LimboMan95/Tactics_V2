@@ -538,7 +538,7 @@ public void RotateSelectedObjectRight()
         bool isValid = IsPositionValid(obj.transform.position);
         UpdateObjectVisuals(isValid);
 
-        bool isRotatable = ((1 << obj.layer) & rotatableLayer) != 0;
+        bool isRotatable = obj.GetComponent<RotatableTool>() != null;
         UpdateUIState(isRotatable);
         if (isRotatable)
         {
