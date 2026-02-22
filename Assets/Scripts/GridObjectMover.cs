@@ -268,21 +268,32 @@ public class GridObjectMover : MonoBehaviour
     #region Object Manipulation
     private void HandleObjectMovement()
     {
-        if (!isInEditMode || selectedObject == null || !isDragging) 
-            return;
+          if (!isInEditMode || selectedObject == null || !isDragging) 
+        return;
 
-        if (Input.GetMouseButton(0))
+    if (Input.GetMouseButton(0))
+    {
+        Ray ray = GetCameraRay();
+        
+        // Создаем горизонтальную плоскость на высоте объекта
+        Plane groundPlane = new Plane(Vector3.up, selectedObject.transform.position);
+        
+        float enter;
+        if (groundPlane.Raycast(ray, out enter))
         {
-            Ray ray = GetCameraRay();
+            Vector3 hitPoint = ray.GetPoint(enter);
             
-            if (Physics.Raycast(ray, out var hit, raycastDistance))
-            {
-                Vector3 newPos = GetSnappedPosition(hit.point);
-                newPos.y = selectedObject.transform.position.y;
-                selectedObject.transform.position = newPos;
-                UpdateObjectVisuals(IsPositionValid(newPos));
-            }
+            Vector3 newPos = new Vector3(
+                Mathf.Round(hitPoint.x / tileSize) * tileSize,
+                selectedObject.transform.position.y,
+                Mathf.Round(hitPoint.z / tileSize) * tileSize
+            );
+            
+            selectedObject.transform.position = newPos;
+            UpdateObjectVisuals(IsPositionValid(newPos));
         }
+    }
+        
         else if (Input.GetMouseButtonUp(0))
         {
             isDragging = false;
