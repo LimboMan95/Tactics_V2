@@ -19,8 +19,21 @@ public class GridGenerator : MonoBehaviour
     public bool drawInEditor = true;
     public Color gridColor = Color.cyan;
 
-    void Awake() => Instance = this;
-    void OnDestroy() { if (Instance == this) Instance = null; }
+    // ← ИСПРАВЛЕНИЕ ЗДЕСЬ
+    void OnEnable()
+    {
+        Instance = this;
+    }
+
+    void Awake()
+    {
+        Instance = this;
+    }
+    
+    void OnDestroy() 
+    { 
+        if (Instance == this) Instance = null; 
+    }
 
     public void GenerateGrid()
     {

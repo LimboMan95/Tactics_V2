@@ -182,6 +182,12 @@ void CheckSpeedTileUnderneath()
         }
     }
 }
+public void GameOver()
+{
+    Debug.Log("💥 КУБ ВЗОРВАН!");
+    DisableMovement();
+    // Тут можно добавить эффекты, рестарт и т.д.
+}
 
 // ДОБАВЛЯЕМ МЕТОД ДЛЯ АКТИВАЦИИ СКОРОСТИ
 public void ActivateSpeedBoost()
@@ -716,7 +722,7 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
     }
 }
 
-    bool HasReachedTriggerCenter(Collider trigger)
+    public bool HasReachedTriggerCenter(Collider trigger)
     {
         // Рассчитываем относительную позицию куба в триггере
         Vector3 localPos = trigger.transform.InverseTransformPoint(transform.position);
