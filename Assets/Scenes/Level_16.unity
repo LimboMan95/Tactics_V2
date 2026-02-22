@@ -2120,7 +2120,7 @@ MonoBehaviour:
   speedTileTag: Speed
   speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   speedMultiplier: 2
-  speedBoostDuration: 3
+  speedBoostDuration: 1.5
   InitialDirection: {x: 0, y: 0, z: 0}
   isRotating: 0
   isGrounded: 1
@@ -5974,7 +5974,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2876640550230216671, guid: 71563ef94d872744aace4a0ada6d077e, type: 3}
       propertyPath: m_Height
-      value: 0.7529656
+      value: 0.43984064
       objectReference: {fileID: 0}
     - target: {fileID: 2876640550230216671, guid: 71563ef94d872744aace4a0ada6d077e, type: 3}
       propertyPath: m_Radius
@@ -5986,7 +5986,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2876640550230216671, guid: 71563ef94d872744aace4a0ada6d077e, type: 3}
       propertyPath: m_Center.y
-      value: 0.3764828
+      value: 0.21992032
       objectReference: {fileID: 0}
     - target: {fileID: 2876640550230216671, guid: 71563ef94d872744aace4a0ada6d077e, type: 3}
       propertyPath: m_Center.z
