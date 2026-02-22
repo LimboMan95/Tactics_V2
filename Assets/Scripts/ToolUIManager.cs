@@ -21,37 +21,51 @@ public class ToolUIManager : MonoBehaviour
         mover = FindObjectOfType<GridObjectMover>();
     }
     
-    public void ShowBubbleForTool(GameObject tool, bool isRotatable)
+   public void ShowBubbleForTool(GameObject tool, bool isRotatable)
+{
+    if (activeBubbles.ContainsKey(tool)) return;
+    
+    GameObject bubble = Instantiate(bubblePrefab, bubbleCanvas.transform);
+    bubble.name = $"Bubble_{tool.name}";
+    
+    Vector3 worldPos = tool.transform.position + Vector3.up * bubbleHeight;
+    Vector3 screenPos = mainCamera.WorldToScreenPoint(worldPos);
+    bubble.GetComponent<RectTransform>().position = screenPos;
+    
+    Button[] buttons = bubble.GetComponentsInChildren<Button>(true);
+    
+    foreach (Button btn in buttons)
     {
-        if (activeBubbles.ContainsKey(tool)) return;
+        btn.onClick.RemoveAllListeners();
         
-        GameObject bubble = Instantiate(bubblePrefab, bubbleCanvas.transform);
-        bubble.name = $"Bubble_{tool.name}";
-        
-        Vector3 worldPos = tool.transform.position + Vector3.up * bubbleHeight;
-        Vector3 screenPos = mainCamera.WorldToScreenPoint(worldPos);
-        bubble.GetComponent<RectTransform>().position = screenPos;
-        
-        Button[] buttons = bubble.GetComponentsInChildren<Button>(true);
-        
-        foreach (Button btn in buttons)
+        if (btn.name.Contains("Left"))
         {
-            btn.onClick.RemoveAllListeners();
-            
-            if (btn.name.Contains("Left"))
-            {
-                btn.onClick.AddListener(() => mover?.RotateSelectedObjectLeft());
-            }
-            else if (btn.name.Contains("Right"))
-            {
-                btn.onClick.AddListener(() => mover?.RotateSelectedObjectRight());
-            }
-            
-            btn.gameObject.SetActive(isRotatable);
+            btn.onClick.AddListener(() => {
+                // Сначала снимаем защиту, потом вращаем
+                if (mover != null)
+                {
+                    
+                    mover.RotateSelectedObjectLeft();
+                }
+            });
+        }
+        else if (btn.name.Contains("Right"))
+        {
+            btn.onClick.AddListener(() => {
+                // Сначала снимаем защиту, потом вращаем
+                if (mover != null)
+                {
+                   
+                    mover.RotateSelectedObjectRight();
+                }
+            });
         }
         
-        activeBubbles[tool] = bubble;
+        btn.gameObject.SetActive(isRotatable);
     }
+    
+    activeBubbles[tool] = bubble;
+}
     
     public void HideAllBubbles()
     {

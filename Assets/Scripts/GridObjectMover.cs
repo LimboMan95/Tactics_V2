@@ -52,6 +52,7 @@ public class GridObjectMover : MonoBehaviour
     private bool isDragging = false;
     private bool isPermanentlySelected = false;
 
+
     private void Awake()
     {
         mainCamera = Camera.main;
@@ -67,23 +68,24 @@ public class GridObjectMover : MonoBehaviour
         if (startInEditMode && CanEnterEditMode()) StartEditMode();
     }
 
-    private void Update()
+   void Update()
+{
+    
+    HandleEditModeToggle();
+    
+    if (isInEditMode)
     {
-        HandleEditModeToggle();
+        HandleObjectSelection();
+        HandleObjectMovement();
+        HandleRotationInput();
         
-        if (isInEditMode)
+        if (selectedObject != null && !isDragging && !isRotating)
         {
-            HandleObjectSelection();
-            HandleObjectMovement();
-            HandleRotationInput();
-            
-            if (selectedObject != null && !isDragging && !isRotating)
-            {
-                bool isValid = IsPositionValid(selectedObject.transform.position);
-                UpdateObjectVisuals(isValid);
-            }
+            bool isValid = IsPositionValid(selectedObject.transform.position);
+            UpdateObjectVisuals(isValid);
         }
     }
+}
 
     #region Selection System
 
@@ -92,50 +94,83 @@ public class GridObjectMover : MonoBehaviour
         return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
     }
 
-    private void HandleObjectSelection()
+ private void HandleObjectSelection()
+{
+    if (!isInEditMode) return;
+    
+    if (Input.GetMouseButtonDown(0))
     {
-        if (!isInEditMode) return;
+        Debug.Log("=== Mouse Click ===");
         
-        if (Input.GetMouseButtonDown(0))
+        // 1. Проверяем баблы
+        bool isOverBubble = IsPointerOverBubble();
+        Debug.Log($"IsOverBubble: {isOverBubble}");
+        
+        if (isOverBubble)
         {
-        if (!disableUIBlocking && IsPointerOverUI()) return;
-            
-            Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-            
-            if (Physics.Raycast(ray, out RaycastHit hit, raycastDistance, movableLayer))
-            {
-                ProcessSelection(hit.collider.gameObject);
-                return;
-            }
-            
-            Vector3 rayEndPoint = ray.origin + ray.direction * raycastDistance;
-            Collider[] colliders = Physics.OverlapSphere(rayEndPoint, selectionRadius, movableLayer);
-            
-            if (colliders.Length > 0)
-            {
-                GameObject closest = null;
-                float closestDist = float.MaxValue;
-                
-                foreach (var col in colliders)
-                {
-                    float dist = Vector3.Distance(rayEndPoint, col.transform.position);
-                    if (dist < closestDist)
-                    {
-                        closestDist = dist;
-                        closest = col.gameObject;
-                    }
-                }
-                
-                ProcessSelection(closest);
-            }
-            else
-            {
-                Debug.Log("No objects found");
-            }
+            Debug.Log("Клик по баблу - выходим");
+            return;
+        }
+        
+        // 2. Проверяем остальной UI
+        bool isOverUI = IsPointerOverUI();
+        Debug.Log($"IsOverUI: {isOverUI}, disableUIBlocking: {disableUIBlocking}");
+        
+        if (!disableUIBlocking && isOverUI)
+        {
+            Debug.Log("Клик по UI - выходим");
+            return;
+        }
+        
+        // 3. Ищем объекты
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        
+        if (Physics.Raycast(ray, out RaycastHit hit, raycastDistance, movableLayer))
+        {
+            Debug.Log($"Raycast hit: {hit.collider.name}");
+            ProcessSelection(hit.collider.gameObject);
+            return;
+        }
+        
+        Debug.Log("Raycast не нашел объект");
+        
+        // 4. Если не нашли - сбрасываем
+        if (selectedObject != null)
+        {
+            Debug.Log("Клик в пустоту - сбрасываем");
+            ResetSelection();
         }
     }
+}
 
-    private void ProcessSelection(GameObject obj)
+private bool IsPointerOverBubble()
+{
+    if (EventSystem.current == null) 
+        return false;
+    
+    PointerEventData pointerData = new PointerEventData(EventSystem.current);
+    pointerData.position = Input.mousePosition;
+    
+    List<RaycastResult> results = new List<RaycastResult>();
+    EventSystem.current.RaycastAll(pointerData, results);
+    
+    // Логируем что нашли
+    Debug.Log($"RaycastAll found {results.Count} UI elements:");
+    foreach (var result in results)
+    {
+        Debug.Log($"  - {result.gameObject.name} in {result.gameObject.GetComponentInParent<Canvas>()?.name}");
+        
+        // Проверяем любой Canvas, а не только bubbleCanvas
+        if (result.gameObject.GetComponentInParent<Canvas>() != null)
+        {
+            return true; // Любой UI - возвращаем true для теста
+        }
+    }
+    
+    return false;
+}
+
+   private void ProcessSelection(GameObject obj)
 {
     if (obj == null) return;
     
@@ -152,6 +187,7 @@ public class GridObjectMover : MonoBehaviour
     isDragging = true;
     isPermanentlySelected = false;
 }
+
 
     private Ray GetCameraRay()
     {
@@ -564,7 +600,7 @@ public void RotateSelectedObjectRight()
         Debug.Log($"Selected: {obj.name}, valid: {isValid}, rotatable: {isRotatable}");
     }
 
-    private void ResetSelection()
+  private void ResetSelection()
     {
         if (ToolUIManager.Instance != null)
 {
@@ -581,5 +617,6 @@ public void RotateSelectedObjectRight()
         
         Debug.Log("Selection reset complete");
     }
+
     #endregion
 }
