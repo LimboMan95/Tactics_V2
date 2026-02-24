@@ -2,45 +2,36 @@ using UnityEngine;
 using UnityEngine.Events;
 using System.Collections;
 
-public class Detonator : MonoBehaviour
+public class Detonator : MonoBehaviour, IResettable
 {
     [Header("Цвет")]
     public Color detonatorColor = Color.magenta;
     
     [Header("Настройки")]
-    public float pressDepth = 0.2f;
+    public float pressDepth = 0.1f;
+    public float centerThreshold = 0.3f;
     
     [Header("События")]
     public UnityEvent onPressed;
     
     private bool isPressed = false;
-    private Vector3 originalPosition;
     private Renderer detonatorRenderer;
     private Color originalColor;
     
+    // Для ресета
+    private Vector3 initialPosition;
+    private Quaternion initialRotation;
+    
     void Start()
     {
-        originalPosition = transform.position;
         detonatorRenderer = GetComponent<Renderer>();
         originalColor = detonatorRenderer.material.color;
-    }
-    
-    // Временно отключаем OnTriggerEnter
-    /*
-    void OnTriggerEnter(Collider other)
-    {
-        Debug.Log($"🔴 Enter: {other.name}");
-        if (isPressed) return;
         
-        DickControlledCube cube = other.GetComponent<DickControlledCube>();
-        if (cube != null)
-        {
-            Press();
-        }
+        // Запоминаем начальную позицию
+        initialPosition = transform.position;
+        initialRotation = transform.rotation;
     }
-    */
     
-    // Используем только OnTriggerStay для постоянной проверки
     void OnTriggerStay(Collider other)
     {
         if (isPressed) return;
@@ -48,53 +39,42 @@ public class Detonator : MonoBehaviour
         DickControlledCube cube = other.GetComponent<DickControlledCube>();
         if (cube == null) return;
         
-        // ПОЛНАЯ ИНФА
         Vector3 cubePos = cube.transform.position;
         Vector3 detPos = transform.position;
         
-        Debug.Log($"=== FRAME {Time.frameCount} ===");
-        Debug.Log($"📌 Cube pos: ({cubePos.x:F3}, {cubePos.y:F3}, {cubePos.z:F3})");
-        Debug.Log($"📌 Det pos:  ({detPos.x:F3}, {detPos.y:F3}, {detPos.z:F3})");
-        
-        // Разница только по X и Z
         float deltaX = Mathf.Abs(cubePos.x - detPos.x);
         float deltaZ = Mathf.Abs(cubePos.z - detPos.z);
         
-        Debug.Log($"📏 Delta X: {deltaX:F3}, Delta Z: {deltaZ:F3}");
-        
-        // Цель - оказаться в пределах 0.3 по каждой оси
-        bool isCentered = deltaX <= 0.3f && deltaZ <= 0.3f;
-        Debug.Log($"🎯 Is centered: {isCentered} (threshold 0.3)");
-        
-        if (isCentered)
+        if (deltaX <= centerThreshold && deltaZ <= centerThreshold)
         {
-            Debug.Log("💥 CENTER REACHED! PRESSING!");
             Press();
         }
     }
     
-    void Press()
-    {
-        isPressed = true;
-        StartCoroutine(PressAnimation());
-        onPressed?.Invoke();
-    }
+   void Press()
+{
+    isPressed = true;
+    StartCoroutine(PressAnimation());
+    onPressed?.Invoke();
+    // Не уничтожаем!
+}
     
     IEnumerator PressAnimation()
+{
+    Vector3 startPos = transform.position;  // Текущая позиция
+    Vector3 pressedPos = startPos + Vector3.down * pressDepth;
+    float duration = 0.2f;
+    float elapsed = 0f;
+    
+    while (elapsed < duration)
     {
-        Vector3 pressedPos = originalPosition - Vector3.up * pressDepth;
-        float duration = 0.2f;
-        float elapsed = 0f;
-        
-        while (elapsed < duration)
-        {
-            transform.position = Vector3.Lerp(originalPosition, pressedPos, elapsed / duration);
-            elapsed += Time.deltaTime;
-            yield return null;
-        }
-        
-        transform.position = pressedPos;
+        transform.position = Vector3.Lerp(startPos, pressedPos, elapsed / duration);
+        elapsed += Time.deltaTime;
+        yield return null;
     }
+    
+    transform.position = pressedPos;
+}
     
     public void Highlight(bool highlight)
     {
@@ -103,4 +83,23 @@ public class Detonator : MonoBehaviour
             detonatorRenderer.material.color = highlight ? detonatorColor : originalColor;
         }
     }
+    
+   public void ResetObject()
+{
+    Debug.Log($"🔵 Detonator Reset START: isPressed={isPressed}, pos={transform.position}");
+    
+    isPressed = false;
+    
+    // ВОЗВРАЩАЕМ ТОЛЬКО ВЫСОТУ!
+    Vector3 pos = transform.position;
+    pos.y = initialPosition.y;
+    transform.position = pos;
+    
+    StopAllCoroutines();
+    
+    if (detonatorRenderer != null)
+        detonatorRenderer.material.color = originalColor;
+    
+    Debug.Log($"🟢 Detonator Reset END: isPressed={isPressed}, pos={transform.position}");
+}
 }

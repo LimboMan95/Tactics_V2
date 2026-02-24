@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections; // Добавьте эту строку в самый верх файла
+using System.Collections.Generic; // ← ДОБАВЬ ЭТОТ USING!
 
 public class TransformSaver : MonoBehaviour
 {
@@ -25,12 +26,55 @@ public class TransformSaver : MonoBehaviour
     [Header("Reset Settings")]
     [Tooltip("Automatically disable movement when resetting")]
     public bool disableMovementOnReset = true;
+    [Header("Resettable Objects")]
+public List<GameObject> resettableObjects = new List<GameObject>();
+private Dictionary<GameObject, Vector3> savedPositions = new Dictionary<GameObject, Vector3>();
+private Dictionary<GameObject, Quaternion> savedRotations = new Dictionary<GameObject, Quaternion>();
 
     private TransformData savedTransforms = new TransformData();
+
+    [ContextMenu("Save Resettable Positions")]
+public void SaveResettablePositions()
+{
+    savedPositions.Clear();
+    savedRotations.Clear();
+    
+    foreach (GameObject obj in resettableObjects)
+    {
+        if (obj != null)
+        {
+            savedPositions[obj] = obj.transform.position;
+            savedRotations[obj] = obj.transform.rotation;
+            Debug.Log($"Saved {obj.name} at {obj.transform.position}");
+        }
+    }
+}
+
+public void ResetResettableObjects()
+{
+    foreach (GameObject obj in resettableObjects)
+    {
+        if (obj != null && savedPositions.ContainsKey(obj))
+        {
+            obj.transform.position = savedPositions[obj];
+            obj.transform.rotation = savedRotations[obj];
+            
+            // Если объект реализует IResettable, вызываем его метод
+            IResettable resettable = obj.GetComponent<IResettable>();
+            if (resettable != null)
+            {
+                resettable.ResetObject();
+            }
+            
+            Debug.Log($"Reset {obj.name} to {savedPositions[obj]}");
+        }
+    }
+}
 
     void Awake()
     {
         SaveCurrentTransforms();
+        SaveResettablePositions();  // ← ДОБАВЬ
     }
 
     [ContextMenu("Save Current Transforms")]
@@ -93,6 +137,7 @@ rb.WakeUp(); // Будим Rigidbody
     cubeController.enabled = true;
     cubeController.Revive(); // Вызовет ResetCollisionEffect внутри себя
     cubeController.movementEnabled = !disableMovementOnReset;
+    ResetResettableObjects();
 
     Debug.Log("Complete reset with color reset");
 }

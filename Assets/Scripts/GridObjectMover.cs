@@ -295,9 +295,14 @@ private bool IsPointerOverBubble()
             cube.ResetAllFragileTiles();
         }
         
-        isInEditMode = false;
-        
-        Debug.Log("Edit mode deactivated - full reset");
+         TransformSaver saver = FindAnyObjectByType<TransformSaver>();
+    if (saver != null)
+    {
+        saver.SaveResettablePositions();
+    }
+    
+    isInEditMode = false;
+    Debug.Log("Edit mode deactivated - full reset");
     }
     #endregion
 

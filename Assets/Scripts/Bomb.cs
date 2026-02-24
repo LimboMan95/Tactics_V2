@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections;
 
-public class Bomb : MonoBehaviour
+public class Bomb : MonoBehaviour, IResettable  // ← Добавь интерфейс сюда
 {
     [Header("Настройки")]
     public Color bombColor = Color.magenta;
@@ -21,10 +21,18 @@ public class Bomb : MonoBehaviour
     private Color originalColor;
     private Coroutine countdownRoutine;
     
+    // Новые поля для ресета
+    private Vector3 initialPosition;
+    private Quaternion initialRotation;
+    
     void Start()
     {
         bombRenderer = GetComponent<Renderer>();
         originalColor = bombRenderer.material.color;
+        
+        // Запоминаем начальную позицию
+        initialPosition = transform.position;
+        initialRotation = transform.rotation;
     }
     
     public void Activate()
@@ -52,35 +60,43 @@ public class Bomb : MonoBehaviour
     }
     
     void Explode()
+{
+    // Эффекты
+    if (explosionEffect != null)
+        Instantiate(explosionEffect, transform.position, Quaternion.identity);
+    
+    if (explosionSound != null)
+        AudioSource.PlayClipAtPoint(explosionSound, transform.position);
+    
+    // Уничтожаем ящики - через SetActive(false), а не Destroy!
+    Collider[] hitObjects = Physics.OverlapSphere(transform.position, explosionRadius, destructibleLayer);
+    foreach (Collider obj in hitObjects)
     {
-        // Эффекты
-        if (explosionEffect != null)
-            Instantiate(explosionEffect, transform.position, Quaternion.identity);
-        
-        if (explosionSound != null)
-            AudioSource.PlayClipAtPoint(explosionSound, transform.position);
-        
-        // Уничтожаем ящики
-        Collider[] hitObjects = Physics.OverlapSphere(transform.position, explosionRadius, destructibleLayer);
-        foreach (Collider obj in hitObjects)
+        Crate crate = obj.GetComponent<Crate>();
+        if (crate != null)
         {
-            Destroy(obj.gameObject);
+            crate.gameObject.SetActive(false);  // ← ИСПРАВЛЕНО
         }
-        
-        // Проверяем игрока
-        Collider[] players = Physics.OverlapSphere(transform.position, explosionRadius, playerLayer);
-        foreach (Collider player in players)
+        else
         {
-            DickControlledCube cube = player.GetComponent<DickControlledCube>();
-            if (cube != null)
-            {
-                cube.GameOver();
-            }
+            obj.gameObject.SetActive(false);    // ← ИСПРАВЛЕНО
         }
-        
-        // Уничтожаем бомбу
-        Destroy(gameObject);
     }
+    
+    // Проверяем игрока
+    Collider[] players = Physics.OverlapSphere(transform.position, explosionRadius, playerLayer);
+    foreach (Collider player in players)
+    {
+        DickControlledCube cube = player.GetComponent<DickControlledCube>();
+        if (cube != null)
+        {
+            cube.GameOver();
+        }
+    }
+    
+    // Уничтожаем бомбу
+    gameObject.SetActive(false);
+}
     
     public void Highlight(bool highlight)
     {
@@ -95,4 +111,19 @@ public class Bomb : MonoBehaviour
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, explosionRadius);
     }
+    
+   public void ResetObject()
+{
+    Debug.Log($"🔴 Bomb Reset START: isActivated={isActivated}, activeSelf={gameObject.activeSelf}");
+    
+    isActivated = false;
+    gameObject.SetActive(true);
+    GetComponent<Renderer>().enabled = true;
+    GetComponent<Collider>().enabled = true;
+    StopAllCoroutines();
+    if (bombRenderer != null)
+        bombRenderer.material.color = originalColor;
+    
+    Debug.Log($"🟢 Bomb Reset END: isActivated={isActivated}, activeSelf={gameObject.activeSelf}");
+}
 }

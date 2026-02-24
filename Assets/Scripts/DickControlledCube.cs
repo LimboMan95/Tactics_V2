@@ -254,6 +254,37 @@ private void CheckAllImmediateActivations()
     CheckAllImmediateActivations();
     CheckAllImmediateActivations();
 }
+public void ResetAllResettableObjects()
+{
+    // Ищем активные объекты с интерфейсом
+    MonoBehaviour[] allObjects = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+    int resetCount = 0;
+    
+    foreach (MonoBehaviour obj in allObjects)
+    {
+        IResettable resettable = obj as IResettable;
+        if (resettable != null)
+        {
+            Debug.Log($"Resetting (active): {obj.name}");
+            resettable.ResetObject();
+            resetCount++;
+        }
+    }
+    
+    // Ищем ВСЕ объекты с компонентом Bomb (включая неактивные!)
+    Bomb[] bombs = Resources.FindObjectsOfTypeAll<Bomb>();
+    foreach (Bomb bomb in bombs)
+    {
+        if (bomb.gameObject.scene.isLoaded) // Проверяем что в текущей сцене
+        {
+            Debug.Log($"🔥 Resetting bomb (inactive): {bomb.name}");
+            bomb.ResetObject();
+            resetCount++;
+        }
+    }
+    
+    Debug.Log($"✅ Сброшено {resetCount} объектов");
+}
 
 private bool CheckImmediateFlagActivation()
 {
@@ -818,22 +849,17 @@ public void Revive()
 
 public void StopGame()
 {
-    // Останавливаем движение
+    Debug.Log("=== STOP GAME ===");
+    
     DisableMovement(); 
-    
-    // Сбрасываем физику
     ResetPhysics();
-    
-    // Сбрасываем цвета тайлов
     ResetAllTileColors();
-    
-    // Сбрасываем ускорение
     ResetSpeedBoost();
-    
-    // Восстанавливаем хрупкие тайлы
     ResetAllFragileTiles();
     
-    // ← ДОБАВИТЬ: Сброс флага
+    // ЯВНО вызываем ресет
+    ResetAllResettableObjects();
+    
     currentFinishTrigger = null;
     
     Debug.Log("Игра остановлена");

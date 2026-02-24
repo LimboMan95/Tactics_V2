@@ -31,7 +31,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -1.7138214, y: 4.233821, z: -4.8103957}
-  m_LocalScale: {x: 1, y: 0.05, z: 1}
+  m_LocalScale: {x: 1, y: 0.2, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -145,6 +145,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   detonatorColor: {r: 0.6627451, g: 0.4745098, b: 0.12156863, a: 1}
   pressDepth: 0.2
+  centerThreshold: 0.3
   onPressed:
     m_PersistentCalls:
       m_Calls: []
