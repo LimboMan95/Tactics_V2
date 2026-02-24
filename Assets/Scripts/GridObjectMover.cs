@@ -520,6 +520,8 @@ public void RotateSelectedObjectRight()
         foreach (var col in colliders)
         {
             if (col.GetComponent<FragileTile>() != null) return false;
+            // Проверяем ящик по компоненту
+            if (col.GetComponent<Crate>() != null) return false;
             if (col.gameObject == selectedObject || 
                 ((1 << col.gameObject.layer) & cubeController.groundMask) != 0)
                 continue;
@@ -586,6 +588,12 @@ public void RotateSelectedObjectRight()
             }
             originalMaterials[renderer] = materialsCopy;
         }
+        
+        Bomb bomb = obj.GetComponent<Bomb>();
+        if (bomb != null)
+        {
+            bomb.ShowRadius(true);
+        }
 
         bool isValid = IsPositionValid(obj.transform.position);
         UpdateObjectVisuals(isValid);
@@ -598,6 +606,7 @@ public void RotateSelectedObjectRight()
             UpdateRotationVisual();
         }
         if (ToolUIManager.Instance != null)
+
 {
     ToolUIManager.Instance.ShowBubbleForTool(obj, isRotatable);
 }
@@ -607,10 +616,18 @@ public void RotateSelectedObjectRight()
 
   private void ResetSelection()
     {
+        if (selectedObject != null)
+    {
+        Bomb bomb = selectedObject.GetComponent<Bomb>();
+        if (bomb != null)
+        {
+            bomb.ShowRadius(false);
+        }
+    }
         if (ToolUIManager.Instance != null)
-{
-    ToolUIManager.Instance.HideAllBubbles();
-}
+    {
+        ToolUIManager.Instance.HideAllBubbles();
+    }
         RestoreOriginalMaterials();
         
         UpdateUIState(false);
@@ -621,6 +638,8 @@ public void RotateSelectedObjectRight()
         isDragging = false;
         
         Debug.Log("Selection reset complete");
+
+        
     }
 
     #endregion
