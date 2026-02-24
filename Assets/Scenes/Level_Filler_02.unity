@@ -1532,6 +1532,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Bomb1
       objectReference: {fileID: 0}
+    - target: {fileID: 1442813227949392331, guid: 777c5d4c5311fe04887191138b893ec5, type: 3}
+      propertyPath: m_TagString
+      value: Untagged
+      objectReference: {fileID: 0}
     - target: {fileID: 7117734816849754252, guid: 777c5d4c5311fe04887191138b893ec5, type: 3}
       propertyPath: bombColor.b
       value: 0.12156863
@@ -1544,6 +1548,10 @@ PrefabInstance:
       propertyPath: bombColor.r
       value: 0.6627451
       objectReference: {fileID: 0}
+    - target: {fileID: 7117734816849754252, guid: 777c5d4c5311fe04887191138b893ec5, type: 3}
+      propertyPath: explosionEffect
+      value: 
+      objectReference: {fileID: 679334823549118133, guid: 20a51797337207c4cab0ef9641a7b70c, type: 3}
     - target: {fileID: 8116266423735593359, guid: 777c5d4c5311fe04887191138b893ec5, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 

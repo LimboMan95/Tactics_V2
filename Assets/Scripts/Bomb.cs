@@ -7,6 +7,7 @@ public class Bomb : MonoBehaviour, IResettable  // ← Добавь интерф
     public Color bombColor = Color.magenta;
     public float explosionDelay = 0.8f;
     public float explosionRadius = 1.5f;
+    public float collisionDelay = 0.2f;         // Для касания (НОВАЯ)
     
     [Header("Эффекты")]
     public ParticleSystem explosionEffect;
@@ -112,6 +113,32 @@ public class Bomb : MonoBehaviour, IResettable  // ← Добавь интерф
         Gizmos.DrawWireSphere(transform.position, explosionRadius);
     }
     
+   void OnCollisionEnter(Collision collision)
+{
+    DickControlledCube cube = collision.collider.GetComponent<DickControlledCube>();
+    if (cube != null && !isActivated)
+    {
+        Debug.Log("💥 Куб врезался! Быстрый взрыв через 0.2 сек!");
+        StartCoroutine(QuickExplode());  // ← Новый метод
+    }
+}
+IEnumerator QuickExplode()
+{
+    isActivated = true;
+    
+    // Быстрое мигание
+    float timer = 0f;
+    while (timer < collisionDelay)
+    {
+        float t = Mathf.PingPong(Time.time * 20f, 1f);  // Мигает быстрее
+        bombRenderer.material.color = Color.Lerp(originalColor, Color.white, t);
+        timer += Time.deltaTime;
+        yield return null;
+    }
+    
+    Explode();
+}
+   
    public void ResetObject()
 {
     Debug.Log($"🔴 Bomb Reset START: isActivated={isActivated}, activeSelf={gameObject.activeSelf}");
