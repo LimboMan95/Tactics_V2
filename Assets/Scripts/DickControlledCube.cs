@@ -964,37 +964,59 @@ public void ForceUpdateDirection(Vector3 newDirection)
         }
     }
 
-    void HandleMovement()
+   void HandleMovement()
+{
+    if (isJumping) return;
+    if (ShouldSnapToGrid())
     {
-        if (isJumping) return; // Не двигаемся во время прыжка
-        if (ShouldSnapToGrid())
-        {
-            SnapToGrid();
-        }
+        SnapToGrid();
+    }
 
-        bool hasObstacle = Physics.Raycast(
-            transform.position, 
-            currentDirection, 
-            checkDistance, 
-            collisionLayers);
+    // Оригинальная проверка (работает как раньше)
+    bool hasObstacle = Physics.Raycast(
+        transform.position, 
+        currentDirection, 
+        checkDistance, 
+        collisionLayers);
 
-        if (hasObstacle)
+    // Дополнительная проверка на бомбу (только если нет препятствий)
+    if (!hasObstacle)
+{
+    RaycastHit hit;
+    if (Physics.Raycast(transform.position, currentDirection, out hit, checkDistance))
+    {
+        Bomb bomb = hit.collider.GetComponent<Bomb>();
+        if (bomb != null)
         {
-            if (!isColliding)
+            hasObstacle = true;
+            
+            // ЕСЛИ БОМБА НЕ АКТИВИРОВАНА — ВЗРЫВАЕМ!
+            if (bomb != null && !bomb.isActivated)
             {
-                StartCollision();
+                // Запускаем корутину прямо из куба
+                StartCoroutine(bomb.QuickExplode());
             }
-            RB.linearVelocity = Vector3.zero;
-        }
-        else
-        {
-            if (isColliding)
-            {
-                EndCollision();
-            }
-            RB.linearVelocity = currentDirection * speed;
         }
     }
+}
+
+    if (hasObstacle)
+    {
+        if (!isColliding)
+        {
+            StartCollision();
+        }
+        RB.linearVelocity = Vector3.zero;
+    }
+    else
+    {
+        if (isColliding)
+        {
+            EndCollision();
+        }
+        RB.linearVelocity = currentDirection * speed;
+    }
+}
 
      void StartCollision()
     {

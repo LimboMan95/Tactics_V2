@@ -18,7 +18,7 @@ public class Bomb : MonoBehaviour, IResettable
     public LayerMask destructibleLayer;
     public LayerMask playerLayer;
     
-    private bool isActivated = false;
+    public bool isActivated = false;
     private Renderer bombRenderer;
     private Color originalColor;
     private Coroutine countdownRoutine;
@@ -121,7 +121,7 @@ public class Bomb : MonoBehaviour, IResettable
         countdownRoutine = StartCoroutine(ExplodeCountdown());
     }
     
-    IEnumerator QuickExplode()
+    public IEnumerator QuickExplode()
     {
         isActivated = true;
         
