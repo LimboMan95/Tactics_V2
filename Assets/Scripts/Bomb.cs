@@ -7,7 +7,8 @@ public class Bomb : MonoBehaviour, IResettable
     public Color bombColor = Color.magenta;
     public float explosionDelay = 0.8f;
     public float collisionDelay = 0.2f;
-    public float explosionRadius = 1.5f;
+    public int explosionSize = 3;  // Размер квадрата взрыва (3 = 3x3 клетки)
+    public float tileSize = 1f;     // Размер клетки
     
     [Header("Эффекты")]
     public ParticleSystem explosionEffect;
@@ -47,6 +48,9 @@ public class Bomb : MonoBehaviour, IResettable
         radiusObj.transform.localPosition = Vector3.zero;
         radiusObj.transform.localRotation = Quaternion.identity;
         
+        float boxSize = (explosionSize - 1) * tileSize;
+        float halfSize = boxSize * 0.5f;
+        
         // ЗАЛИВКА (КРАСНЫЙ ПОЛУПРОЗРАЧНЫЙ)
         GameObject fillObj = new GameObject("Fill");
         fillObj.transform.SetParent(radiusObj.transform);
@@ -56,27 +60,14 @@ public class Bomb : MonoBehaviour, IResettable
         MeshRenderer fillRenderer = fillObj.AddComponent<MeshRenderer>();
         
         Mesh fillMeshData = new Mesh();
-        int segments = 36;
-        Vector3[] vertices = new Vector3[segments + 1];
-        int[] triangles = new int[segments * 3];
-        
-        vertices[0] = Vector3.zero;
-        float angle = 0f;
-        for (int i = 0; i < segments; i++)
+        fillMeshData.vertices = new Vector3[]
         {
-            float x = Mathf.Sin(angle) * explosionRadius;
-            float z = Mathf.Cos(angle) * explosionRadius;
-            vertices[i + 1] = new Vector3(x, 0.1f, z);
-            
-            triangles[i * 3] = 0;
-            triangles[i * 3 + 1] = i + 1;
-            triangles[i * 3 + 2] = (i + 1) % segments + 1;
-            
-            angle += 2 * Mathf.PI / segments;
-        }
-        
-        fillMeshData.vertices = vertices;
-        fillMeshData.triangles = triangles;
+            new Vector3(-halfSize, 0.1f, -halfSize),
+            new Vector3( halfSize, 0.1f, -halfSize),
+            new Vector3( halfSize, 0.1f,  halfSize),
+            new Vector3(-halfSize, 0.1f,  halfSize)
+        };
+        fillMeshData.triangles = new int[] { 0, 1, 2, 0, 2, 3 };
         fillMeshData.RecalculateNormals();
         fillMesh.mesh = fillMeshData;
         
@@ -92,17 +83,14 @@ public class Bomb : MonoBehaviour, IResettable
         line.material = new Material(Shader.Find("Sprites/Default"));
         line.startColor = Color.black;
         line.endColor = Color.black;
-        line.positionCount = segments + 1;
+        line.positionCount = 5;
         line.useWorldSpace = false;
         
-        angle = 0f;
-        for (int i = 0; i <= segments; i++)
-        {
-            float x = Mathf.Sin(angle) * explosionRadius;
-            float z = Mathf.Cos(angle) * explosionRadius;
-            line.SetPosition(i, new Vector3(x, 0.11f, z));
-            angle += 2 * Mathf.PI / segments;
-        }
+        line.SetPosition(0, new Vector3(-halfSize, 0.11f, -halfSize));
+        line.SetPosition(1, new Vector3( halfSize, 0.11f, -halfSize));
+        line.SetPosition(2, new Vector3( halfSize, 0.11f,  halfSize));
+        line.SetPosition(3, new Vector3(-halfSize, 0.11f,  halfSize));
+        line.SetPosition(4, new Vector3(-halfSize, 0.11f, -halfSize));
         
         radiusObj.SetActive(false);
     }
@@ -172,7 +160,12 @@ public class Bomb : MonoBehaviour, IResettable
         if (explosionSound != null)
             AudioSource.PlayClipAtPoint(explosionSound, transform.position);
         
-        Collider[] hitObjects = Physics.OverlapSphere(transform.position, explosionRadius, destructibleLayer);
+        float boxSize = (explosionSize - 1) * tileSize;
+        Vector3 boxCenter = transform.position;
+        Vector3 halfExtents = new Vector3(boxSize * 0.5f, 1f, boxSize * 0.5f);
+        
+        // Уничтожаем ящики
+        Collider[] hitObjects = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity, destructibleLayer);
         foreach (Collider obj in hitObjects)
         {
             Crate crate = obj.GetComponent<Crate>();
@@ -186,7 +179,8 @@ public class Bomb : MonoBehaviour, IResettable
             }
         }
         
-        Collider[] players = Physics.OverlapSphere(transform.position, explosionRadius, playerLayer);
+        // Проверяем игрока
+        Collider[] players = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity, playerLayer);
         foreach (Collider player in players)
         {
             DickControlledCube cube = player.GetComponent<DickControlledCube>();
@@ -229,7 +223,8 @@ public class Bomb : MonoBehaviour, IResettable
     
     void OnDrawGizmosSelected()
     {
+        float boxSize = (explosionSize - 1) * tileSize;
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, explosionRadius);
+        Gizmos.DrawWireCube(transform.position, new Vector3(boxSize, 0.1f, boxSize));
     }
 }
