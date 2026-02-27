@@ -21,6 +21,7 @@ public class Detonator : MonoBehaviour, IResettable
     // Для ресета
     private Vector3 initialPosition;
     private Quaternion initialRotation;
+    private GridObjectMover editModeChecker;
     
     void Start()
     {
@@ -30,26 +31,32 @@ public class Detonator : MonoBehaviour, IResettable
         // Запоминаем начальную позицию
         initialPosition = transform.position;
         initialRotation = transform.rotation;
+          // Находим editModeChecker
+    editModeChecker = FindObjectOfType<GridObjectMover>();
     }
     
     void OnTriggerStay(Collider other)
+{
+    // Не работаем в режиме редактирования
+    if (editModeChecker != null && editModeChecker.isInEditMode) 
+        return;
+    
+    if (isPressed) return;
+    
+    DickControlledCube cube = other.GetComponent<DickControlledCube>();
+    if (cube == null) return;
+    
+    Vector3 cubePos = cube.transform.position;
+    Vector3 detPos = transform.position;
+    
+    float deltaX = Mathf.Abs(cubePos.x - detPos.x);
+    float deltaZ = Mathf.Abs(cubePos.z - detPos.z);
+    
+    if (deltaX <= centerThreshold && deltaZ <= centerThreshold)
     {
-        if (isPressed) return;
-        
-        DickControlledCube cube = other.GetComponent<DickControlledCube>();
-        if (cube == null) return;
-        
-        Vector3 cubePos = cube.transform.position;
-        Vector3 detPos = transform.position;
-        
-        float deltaX = Mathf.Abs(cubePos.x - detPos.x);
-        float deltaZ = Mathf.Abs(cubePos.z - detPos.z);
-        
-        if (deltaX <= centerThreshold && deltaZ <= centerThreshold)
-        {
-            Press();
-        }
+        Press();
     }
+}
     
    void Press()
 {
