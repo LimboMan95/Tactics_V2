@@ -1855,6 +1855,7 @@ MonoBehaviour:
   mainPointer: {fileID: 1943964059}
   visualPointer: {fileID: 1555010579}
   disableMovementOnReset: 1
+  resettableObjects: []
 --- !u!4 &265856492
 Transform:
   m_ObjectHideFlags: 0
