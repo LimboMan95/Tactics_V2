@@ -91,8 +91,8 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.36902747
-  m_Height: 1.3492
+  m_Radius: 0.19
+  m_Height: 0.73
   m_Direction: 1
   m_Center: {x: 0, y: 0.6746, z: 0}
 --- !u!114 &6078173037062991608
@@ -113,4 +113,6 @@ MonoBehaviour:
   snapToGround: 1
   lockYPosition: 1
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}

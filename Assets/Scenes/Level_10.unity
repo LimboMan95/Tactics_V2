@@ -1290,6 +1290,7 @@ MonoBehaviour:
   mainPointer: {fileID: 1943964059}
   visualPointer: {fileID: 1555010579}
   disableMovementOnReset: 1
+  resettableObjects: []
 --- !u!4 &265856492
 Transform:
   m_ObjectHideFlags: 0
@@ -2661,9 +2662,9 @@ MonoBehaviour:
   visualPointer: {fileID: 1555010579}
   movementEnabled: 0
   currentDirection: {x: 0, y: 0, z: 0}
-  jumpHeight: 1
-  jumpDistance: 2
-  jumpDuration: 0.8
+  jumpHeight: 1.65
+  jumpDistance: 2.25
+  jumpDuration: 1
   jumpCurve:
     serializedVersion: 2
     m_Curve:
@@ -2677,8 +2678,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 0.5
-      value: 1
+      time: 0.05999756
+      value: 0.9943466
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -2699,6 +2700,9 @@ MonoBehaviour:
     m_RotationOrder: 4
   speedBoostJumpMultiplier: 2
   isJumping: 0
+  phaseTwoStart: 0.7
+  smallColliderSize: 0.3
+  normalColliderSize: 1
   fragileTileTag: FragileTile
   speedTileTag: Speed
   speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}

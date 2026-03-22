@@ -11,10 +11,25 @@ public class DickControlledCube : MonoBehaviour
     public LayerMask obstacleMask;
     public float checkDistance = 1f;
 
+    [Header("Physics (smooth constant speed)")]
+    [Tooltip("Rigidbody damping съедает скорость между FixedUpdate — даёт рывки по клеткам. Для аркады обычно 0.")]
+    [SerializeField] private float rigidbodyLinearDamping = 0f;
+    [SerializeField] private float rigidbodyAngularDamping = 0f;
+    [Tooltip("Трение с полом тормозит тело даже при выставлении velocity каждый кадр.")]
+    [SerializeField] private bool applyZeroFrictionColliderMaterial = true;
+
     [Header("Ground Settings")]
     public LayerMask groundMask;
     public float groundCheckDistance = 0.5f;
     public float cubeSize = 1f;
+
+    [Header("Fall death")]
+    [Tooltip("Если выключено — падение за карту не убивает (только бомба и т.п.).")]
+    [SerializeField] private bool enableFallDeath = true;
+    [Tooltip("Смерть, если Y ниже этой мировой координаты (подстрой под пол уровня).")]
+    [SerializeField] private float fallDeathWorldY = -12f;
+    [Tooltip("Дополнительно: смерть, если ниже точки старта куба больше чем на столько метров.")]
+    [SerializeField] private float maxFallBelowSpawnY = 30f;
 
     [Header("Direction Tile Settings")]
     public string directionTileTag = "DirectionTile";
@@ -45,14 +60,25 @@ public class DickControlledCube : MonoBehaviour
     public bool movementEnabled = true;
     public Vector3 currentDirection = Vector3.forward;
     [Header("Jump Settings")]
+[Tooltip("Высота вершины дуги в мировых единицах (1 клетка при tileSize=1 → 1).")]
 public float jumpHeight = 1f;
+[Tooltip("Дальность по горизонтали в мировых единицах (2 клетки при tileSize=1 → 2). Скорость vx считается из времени полёта.")]
 public float jumpDistance = 2f;
+[Tooltip("Длительность фазы уменьшенного коллайдера (сек). Не задаёт дальность — она из jumpDistance и jumpHeight.")]
 public float jumpDuration = 0.8f;
 public AnimationCurve jumpCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.5f, 1f), new Keyframe(1, 0));
 public float speedBoostJumpMultiplier = 2f; // Во сколько раз длиннее прыжок при ускорении
 public bool isJumping = false;
 private Vector3 jumpStartPosition;
 private Vector3 jumpTargetPosition;
+// НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ ДВУХФАЗНОГО ПРЫЖКА
+[Header("Two-Phase Jump")]
+public float phaseTwoStart = 0.7f; // 70% прыжка
+public float smallColliderSize = 0.6f; // Размер коллайдера в первой фазе
+public float normalColliderSize = 1f; // Нормальный размер
+private Vector3 originalColliderSize;
+private Vector3 originalColliderCenter;
+
 [Header("Fragile Tile Settings")]
 public string fragileTileTag = "FragileTile";
 [Header("Speed Tile Settings")]
@@ -102,6 +128,10 @@ private bool isOnJumpTile;
 private Vector3 jumpTileEntryPoint;
 private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameObject, Color>();
 
+    private BoxCollider _boxCollider;
+    private const float SnapVelocityThreshold = 0.08f;
+    private bool isDead;
+    private Coroutine _jumpRoutine;
 
     void Awake()
     {
@@ -130,7 +160,10 @@ private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameOb
 
         RB = GetComponent<Rigidbody>();
         RB.freezeRotation = true;
-        RB.useGravity = false;
+        RB.useGravity = true;
+        RB.linearDamping = rigidbodyLinearDamping;
+        RB.angularDamping = rigidbodyAngularDamping;
+        RB.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
         InitialPosition = transform.position;
         initialRotation = transform.rotation;
@@ -143,9 +176,26 @@ private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameOb
 
         
         lastGridPosition = GetSnappedPosition(transform.position);
+        _boxCollider = GetComponent<BoxCollider>();
+        if (_boxCollider != null)
+        {
+            originalColliderSize = _boxCollider.size;
+            originalColliderCenter = _boxCollider.center;
+            if (applyZeroFrictionColliderMaterial)
+            {
+                var pm = new PhysicsMaterial("CubeMovement_NoFriction")
+                {
+                    dynamicFriction = 0f,
+                    staticFriction = 0f,
+                    bounciness = 0f,
+                    frictionCombine = PhysicsMaterialCombine.Minimum,
+                    bounceCombine = PhysicsMaterialCombine.Minimum
+                };
+                _boxCollider.material = pm;
+            }
+        }
         isGrounded = CheckGround();
         halfTileSize = tileSize / 2f;
-        Debug.Log($"Rigidbody: isKinematic={RB.isKinematic}, UseGravity={RB.useGravity}, Drag={RB.linearDamping}");
 
          materialBlock = new MaterialPropertyBlock();
         GetComponent<MeshRenderer>().GetPropertyBlock(materialBlock);
@@ -184,6 +234,8 @@ void CheckSpeedTileUnderneath()
 }
 public void GameOver()
 {
+    if (isDead) return;
+    isDead = true;
     Debug.Log("💥 КУБ ВЗОРВАН!");
     DisableMovement();
     // Тут можно добавить эффекты, рестарт и т.д.
@@ -322,132 +374,173 @@ private bool CheckImmediateFlagActivation()
 
 public void PerformJump()
 {
-    if (isJumping || isRotating || !isGrounded) return;
+     Debug.Log($"🎯 PerformJump START from {Time.frameCount}");
+    Debug.Log($"🎯 PerformJump called: isJumping={isJumping}, isRotating={isRotating}, isGrounded={isGrounded}");
     
-    StartCoroutine(JumpRoutine());
+    if (isJumping || isRotating || !isGrounded)
+    {
+        Debug.Log($"   ❌ Прыжок отклонён: isJumping={isJumping}, isRotating={isRotating}, isGrounded={isGrounded}");
+        return;
+    }
+    
+    _jumpRoutine = StartCoroutine(JumpRoutine());
 }
 private IEnumerator JumpRoutine()
 {
     if (isJumping || isRotating || !isGrounded) yield break;
     
-    // Сохраняем состояние и отключаем стандартное управление
     isJumping = true;
     bool wasMovementEnabled = movementEnabled;
     movementEnabled = false;
+
+    try
+    {
     
-    // Останавливаем физику
+    // Очищаем скорость
     RB.linearVelocity = Vector3.zero;
     RB.angularVelocity = Vector3.zero;
     
-    // ← РАСЧЕТ ДИСТАНЦИИ ПРЫЖКА С УЧЕТОМ УСКОРЕНИЯ
+    // Расчет дистанции с учётом ускорения
     float currentJumpDistance = jumpDistance;
-    
     if (isSpeedBoosted)
-    {
         currentJumpDistance *= speedBoostJumpMultiplier;
-        Debug.Log($"🚀 Ускоренный прыжок! Дистанция: {jumpDistance} → {currentJumpDistance} (x{speedBoostJumpMultiplier})");
-    }
-    else
-    {
-        Debug.Log($"🔄 Обычный прыжок. Дистанция: {currentJumpDistance}");
-    }
     
-    // Запоминаем начальную позицию и рассчитываем целевую
-    jumpStartPosition = transform.position;
-    jumpTargetPosition = jumpStartPosition + currentDirection * currentJumpDistance;
-    jumpTargetPosition = GetSnappedPosition(jumpTargetPosition); // Снэпим цель к сетке
+    Vector3 jumpDirection = currentDirection.normalized;
     
-    // Временно отключаем проверку земли чтобы избежать падения
-    bool wasGravityEnabled = RB.useGravity;
-    RB.useGravity = false;
-    bool wasFreezeRotation = RB.freezeRotation;
-    
+    float g = Mathf.Abs(Physics.gravity.y);
+    if (g < 0.01f) g = 9.81f;
+
+    float verticalSpeed = Mathf.Sqrt(2f * g * jumpHeight);
+    float flightTime = 2f * verticalSpeed / g;
+    if (flightTime < 0.02f) flightTime = 0.02f;
+
+    float horizontalSpeed = currentJumpDistance / flightTime;
+
+    RB.linearVelocity = jumpDirection * horizontalSpeed + Vector3.up * verticalSpeed;
+
+    float colliderPhaseDuration = Mathf.Min(jumpDuration, flightTime * 0.98f);
+
+    BoxCollider boxCol = GetComponent<BoxCollider>();
     float elapsed = 0f;
-    
-    // Процесс прыжка (параболическая траектория)
-    while (elapsed < jumpDuration)
+
+    while (elapsed < colliderPhaseDuration && isJumping)
     {
         elapsed += Time.deltaTime;
-        float progress = elapsed / jumpDuration;
-        float curveValue = jumpCurve.Evaluate(progress);
+        float progress = colliderPhaseDuration > 1e-4f ? elapsed / colliderPhaseDuration : 1f;
         
-        // Параболическая траектория: движение вперед + вертикальный подъем/спуск
-        Vector3 newPosition = Vector3.Lerp(jumpStartPosition, jumpTargetPosition, progress);
-        newPosition.y = jumpStartPosition.y + curveValue * jumpHeight;
-        
-        // Плавное перемещение
-        RB.MovePosition(newPosition);
+        if (boxCol != null)
+        {
+            if (progress < phaseTwoStart)
+            {
+                boxCol.size = Vector3.one * smallColliderSize;
+                boxCol.center = Vector3.zero;
+            }
+            else
+            {
+                boxCol.size = Vector3.one * normalColliderSize;
+                boxCol.center = Vector3.zero;
+            }
+        }
         
         yield return null;
     }
     
-    // Гарантированно становимся в конечную позицию
-    Vector3 finalPosition = GetSnappedPosition(jumpTargetPosition);
-    finalPosition.y = jumpStartPosition.y; // Возвращаем исходную высоту
-    RB.MovePosition(finalPosition);
-    
-    // ← ВАЖНОЕ ИЗМЕНЕНИЕ 1: Сначала проверяем ВСЕ немедленные активации
-    CheckImmediateTileActivation();
-    
-    // ← ВАЖНОЕ ИЗМЕНЕНИЕ 2: Проверяем специально флаг
-    if (CheckImmediateFlagActivation())
+    if (boxCol != null)
     {
-        Debug.Log("Jump landed on flag - stopping jump sequence");
-        
-        // Восстанавливаем физические настройки
-        RB.useGravity = wasGravityEnabled;
-        RB.freezeRotation = wasFreezeRotation;
-        
-        // НЕ восстанавливаем управление - оставляем выключенным
-        // Флаг уже запустил CompleteLevelWithDelay который остановит все движение
-        isJumping = false;
-        yield break; // ← Прерываем корутину ДО восстановления движения
+        boxCol.size = originalColliderSize;
+        boxCol.center = originalColliderCenter;
     }
-    
-    // Восстанавливаем физические настройки
-    RB.useGravity = wasGravityEnabled;
-    RB.freezeRotation = wasFreezeRotation;
-    
-    // Дополнительные задержки для стабилизации (если не попали на флаг)
-    yield return new WaitForSeconds(0.1f);
+
+    yield return new WaitUntil(() => !isGrounded);
+    yield return new WaitUntil(() => isGrounded);
+    yield return new WaitForFixedUpdate();
     yield return new WaitForFixedUpdate();
     
-    // ← ВАЖНОЕ ИЗМЕНЕНИЕ 3: Повторная проверка после стабилизации
-    if (!isRotating && !isJumping)
-    {
-        CheckImmediateTileActivation();
-        CheckImmediateFlagActivation(); // ← Проверяем флаг еще раз
-    }
+    // Снэпаем позицию
+    Vector3 snappedPos = GetSnappedPosition(transform.position);
+    snappedPos.y = transform.position.y;
+    RB.MovePosition(snappedPos);
     
-    // Восстанавливаем состояние управления
-    movementEnabled = wasMovementEnabled;
+    // Проверяем поворотные тайлы
+    CheckDirectionTileOnly();
+    Debug.Log($"🪂 Приземление: pos={transform.position}");
+    
+    // Сбрасываем флаг прыжка
     isJumping = false;
     
-    // Принудительно проверяем землю после приземления
+    // Проверяем все тайлы
+    CheckImmediateTileActivation();
+    
+    // Нормализуем скорость после прыжка
+    if (isSpeedBoosted)
+        speed = originalSpeed * speedMultiplier;
+    else
+        speed = originalSpeed;
+    RB.linearVelocity = currentDirection * speed;
+    
+    movementEnabled = wasMovementEnabled;
     isGrounded = CheckGround();
     
-    // ← ВАЖНОЕ ИЗМЕНЕНИЕ 4: Финальная проверка после восстановления управления
-    if (movementEnabled && !isRotating)
+    // Проверка на ящик
+    Collider[] landingCrates = Physics.OverlapBox(
+        transform.position,
+        new Vector3(cubeSize * 0.4f, 0.3f, cubeSize * 0.4f),
+        Quaternion.identity,
+        LayerMask.GetMask("Crate")
+    );
+    
+    if (landingCrates.Length > 0)
     {
-        CheckImmediateTileActivation();
+        Debug.Log("📦 Приземлился на ящик!");
+        if (!isColliding) StartCollision();
+        RB.linearVelocity = Vector3.zero;
+        movementEnabled = false;
     }
     
-    Debug.Log($"Jump completed. Grounded: {isGrounded}, Boosted: {isSpeedBoosted}");
+    Debug.Log($"Jump completed. Grounded: {isGrounded}");
+    }
+    finally
+    {
+        _jumpRoutine = null;
+    }
 }
-private void CheckImmediateTileActivation()
+
+// === НОВЫЙ МЕТОД: ТОЛЬКО ПОВОРОТНЫЕ ТАЙЛЫ ===
+private void CheckDirectionTileOnly()
 {
     if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 0.5f))
     {
         if (hit.collider.CompareTag(directionTileTag) && !isRotating)
         {
             Vector3 tileDirection = hit.collider.transform.forward;
+            Debug.Log($"🔄 CheckDirectionTileOnly: тайл {hit.collider.name} | угол={Vector3.Angle(currentDirection, tileDirection)}");
+            
             if (Vector3.Angle(currentDirection, tileDirection) > 5f)
             {
+                Debug.Log($"   ✅ ПОВОРОТ ИЗ CHECKDIRECTIONTILEONLY");
                 StartCoroutine(RotateToDirection(tileDirection));
                 isOnDirectionTile = false;
             }
         }
-        // ← ОСТАВЛЯЕМ прыжковые тайлы, но ДОБАВЛЯЕМ проверку центра!
+    }
+}
+private void CheckImmediateTileActivation()
+{
+    if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 0.5f))
+    {
+        if (hit.collider.CompareTag(directionTileTag) && !isRotating)
+{
+    Vector3 tileDirection = hit.collider.transform.forward;
+    Debug.Log($"🔄 CheckImmediate: поворотный тайл {hit.collider.name} | угол={Vector3.Angle(currentDirection, tileDirection)}");
+    
+    if (Vector3.Angle(currentDirection, tileDirection) > 5f)
+    {
+        Debug.Log($"   ✅ ПОВОРОТ ИЗ CHECKIMMEDIATE");
+        StartCoroutine(RotateToDirection(tileDirection));
+        isOnDirectionTile = false;
+    }
+}
+        // ← ОСТАВЛЯЕМ прыжковые тайлы
         else if (hit.collider.CompareTag(jumpTileTag) && !isJumping && !isRotating)
         {
             // Проверяем находимся ли мы достаточно близко к центру тайла
@@ -456,9 +549,10 @@ private void CheckImmediateTileActivation()
                 new Vector3(transform.position.x, 0, transform.position.z),
                 new Vector3(tileCenter.x, 0, tileCenter.z));
             
-            // Если в центре тайла (в пределах 30% от размера) - прыгаем
-            if (distanceToCenter <= tileSize * 0.3f)
+            // Используем ЕДИНЫЙ порог triggerCenterThreshold
+            if (distanceToCenter <= triggerCenterThreshold)
             {
+                Debug.Log($"📏 CheckImmediate: прыжок на {hit.collider.name} | distance={distanceToCenter} | threshold={triggerCenterThreshold}");
                 PerformJump();
                 isOnJumpTile = false;
             }
@@ -506,6 +600,30 @@ public void SetRotatingState(bool state) {
 {
     UpdateVisualPointers();
     PeriodicGroundCheck();
+    if (isOnJumpTile && !isJumping && !isRotating && lastJumpTile != null)
+{
+    float distance = Vector3.Dot(transform.position - jumpTileEntryPoint, currentDirection);
+    
+    if (distance >= tileSize * 0.5f)
+    {
+        PerformJump();
+        isOnJumpTile = false;
+    }
+}
+if (isOnDirectionTile && !isRotating && lastDirectionTile != null) 
+{
+    float distance = Vector3.Dot(transform.position - tileEntryPoint, currentDirection);
+    
+    if (distance >= tileSize * 0.5f)
+    {
+        Vector3 tileDirection = lastDirectionTile.transform.forward;
+        if (Vector3.Angle(currentDirection, tileDirection) > 5f)
+        {
+            StartCoroutine(RotateToDirection(tileDirection));
+            isOnDirectionTile = false;
+        }
+    }
+}
     
     // ← ВАЖНО: Полностью отключаем ВСЮ логику тайлов в режиме редактирования
     bool shouldProcessTiles = editModeChecker == null || !editModeChecker.isInEditMode;
@@ -550,6 +668,8 @@ public void SetRotatingState(bool state) {
             HandleMovement();
         }
     }
+
+    CheckFallDeath();
 }
 
 
@@ -594,6 +714,10 @@ void HighlightJumpTile(GameObject tile)
     if (editModeChecker != null && editModeChecker.isInEditMode) return;
     
     Debug.Log($"Trigger enter: {other.gameObject.name}");
+    if (other.CompareTag(directionTileTag))
+    {
+        Debug.Log($"🎯 Вход в тайл {other.name} на позиции {other.transform.position}");
+    }
     
     if (((1 << other.gameObject.layer) & levelCompleteLayer) != 0)
     {
@@ -639,35 +763,115 @@ void OnTriggerStay(Collider other)
 {
     if (editModeChecker != null && editModeChecker.isInEditMode) return;
     
-    Debug.Log($"🎯 [OnTriggerStay] Frame: {Time.frameCount}, Object: {other.gameObject.name}");
+    // ===== ПОВОРОТНЫЙ ТАЙЛ =====
+    if (other.CompareTag(directionTileTag))
+    {
+        bool centerReached = HasReachedTriggerCenter(other);
+        float angle = Vector3.Angle(currentDirection, other.transform.forward);
+        Vector3 tileDirection = other.transform.forward;
+        
+        Debug.Log($"🔄=== ПОВОРОТ ===");
+        Debug.Log($"   Тайл: {other.name}");
+        Debug.Log($"   Позиция куба: {transform.position}");
+        Debug.Log($"   Позиция тайла: {other.transform.position}");
+        Debug.Log($"   localPos: {other.transform.InverseTransformPoint(transform.position)}");
+        Debug.Log($"   isRotating: {isRotating}");
+        Debug.Log($"   isGrounded: {isGrounded}");
+        Debug.Log($"   centerReached: {centerReached}");
+        Debug.Log($"   triggerCenterThreshold: {triggerCenterThreshold}");
+        Debug.Log($"   Угол: {angle}");
+        
+        // ДОБАВЛЕНА ПРОВЕРКА, ЧТО УГОЛ РЕАЛЬНО БОЛЬШОЙ
+        if (!isRotating && centerReached && angle > 5f)
+        {
+            Debug.Log($"   ✅ ПОВОРОТ ВЫПОЛНЯЕТСЯ! Угол={angle}");
+            currentDirection = tileDirection;
+            mainPointer.forward = tileDirection;
+            visualPointer.forward = tileDirection;
+            StartCoroutine(RotateToDirection(tileDirection));
+        }
+        else if (!isRotating && centerReached && angle <= 5f)
+        {
+            Debug.Log($"   ❌ Угол мал: {angle} ≤ 5 — поворот не нужен, isRotating НЕ ВКЛЮЧАЕТСЯ");
+        }
+        else
+        {
+            Debug.Log($"   ❌ Условия не выполнены: !isRotating={!isRotating}, centerReached={centerReached}, angle={angle}");
+        }
+    }
     
-    // Проверяем флаг
+    // ===== ПРЫЖКОВЫЙ ТАЙЛ =====
+    if (other.CompareTag(jumpTileTag))
+    {
+        bool centerReached = HasReachedTriggerCenter(other);
+        Debug.Log($"🦘 Прыжковый тайл {other.name} | isJumping={isJumping} | isRotating={isRotating} | isGrounded={isGrounded} | centerReached={centerReached}");
+        
+        if (!isJumping && !isRotating && isGrounded && centerReached)
+        {
+            Debug.Log($"   ✅ ПРЫЖОК ВЫПОЛНЯЕТСЯ!");
+            PerformJump();
+        }
+    }
+    
+    // ===== ФЛАГ =====
     if (currentFinishTrigger != null && other.gameObject == currentFinishTrigger)
     {
         Debug.Log($"🎯 Checking flag center in OnTriggerStay...");
-        
         if (HasReachedTriggerCenter(other))
         {
             Debug.Log($"🎯🎯🎯 CENTER REACHED in OnTriggerStay!");
             StartCoroutine(CompleteLevelWithDelay(other.gameObject));
         }
     }
-    
-    // Также проверяем другие тайлы если нужно
-    // Но для флага достаточно проверки выше
 }
+
+    /// <summary>Останавливает корутины прыжка/поворота/таймеров и сбрасывает флаги.
+    /// Иначе после стопа во время прыжка JumpRoutine мог завершиться позже и снова включить движение и velocity.</summary>
+    private void CancelJumpAndMovementCoroutines()
+    {
+        if (_jumpRoutine != null)
+        {
+            StopCoroutine(_jumpRoutine);
+            _jumpRoutine = null;
+        }
+        StopAllCoroutines();
+        CancelInvoke();
+        isJumping = false;
+        isRotating = false;
+        isOnDirectionTile = false;
+        isOnJumpTile = false;
+        lastDirectionTile = null;
+        lastJumpTile = null;
+        isColliding = false;
+        currentFinishTrigger = null;
+
+        if (_boxCollider != null)
+        {
+            _boxCollider.size = originalColliderSize;
+            _boxCollider.center = originalColliderCenter;
+        }
+    }
+
+    /// <summary>Только прыжок — без StopAllCoroutines, чтобы не оборвать CompleteLevelWithDelay.</summary>
+    private void ForceEndJumpOnly()
+    {
+        if (_jumpRoutine != null)
+        {
+            StopCoroutine(_jumpRoutine);
+            _jumpRoutine = null;
+        }
+        isJumping = false;
+        if (_boxCollider != null)
+        {
+            _boxCollider.size = originalColliderSize;
+            _boxCollider.center = originalColliderCenter;
+        }
+    }
 
 public void ForceStopAllMovement()
 {
-    // Останавливаем все корутины движения
-    StopAllCoroutines();
-    
-    // Сбрасываем все флаги состояния
-    isJumping = false;
-    isRotating = false;
+    CancelJumpAndMovementCoroutines();
     movementEnabled = false;
-    isOnDirectionTile = false;
-    isOnJumpTile = false;
     
     // Останавливаем физику
     if (RB != null)
@@ -686,6 +890,9 @@ public void ForceStopAllMovement()
 IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
 {
     Debug.Log("🎮 LEVEL COMPLETE STARTED");
+
+    ForceEndJumpOnly();
+    isRotating = false;
     
     // 1. Уничтожить флаг
     Destroy(finishTrigger);
@@ -734,17 +941,18 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
 {
     if (editModeChecker != null && editModeChecker.isInEditMode) return;
     
-    if (other.CompareTag(directionTileTag))
-    {
-        isOnDirectionTile = false;
-        lastDirectionTile = null;
-    }
-    
-    // Добавляем обработку выхода с тайла прыжка
     if (other.CompareTag(jumpTileTag))
     {
+        Debug.Log($"🚪 Выход из прыжкового тайла {other.name} | Позиция: {transform.position}");
         isOnJumpTile = false;
         lastJumpTile = null;
+    }
+    
+    if (other.CompareTag(directionTileTag))
+    {
+        Debug.Log($"🚪 Выход из поворотного тайла {other.name} | Позиция: {transform.position}");
+        isOnDirectionTile = false;
+        lastDirectionTile = null;
     }
     
     if (other.gameObject == currentFinishTrigger)
@@ -831,6 +1039,7 @@ public void ResetPhysics()
 }
 public void Revive()
 {
+    isDead = false;
     if (TryGetComponent<Rigidbody>(out var RB))
     {
         RB.WakeUp();
@@ -850,17 +1059,15 @@ public void Revive()
 public void StopGame()
 {
     Debug.Log("=== STOP GAME ===");
-    
+
+    CancelJumpAndMovementCoroutines();
     DisableMovement(); 
     ResetPhysics();
     ResetAllTileColors();
     ResetSpeedBoost();
     ResetAllFragileTiles();
     
-    // ЯВНО вызываем ресет
     ResetAllResettableObjects();
-    
-    currentFinishTrigger = null;
     
     Debug.Log("Игра остановлена");
 }
@@ -902,6 +1109,7 @@ public void OnStopGameClick()
 
 public void FullReset() {
     StopAllCoroutines();
+    isDead = false;
     isRotating = false;
     isGrounded = true;
     movementEnabled = false;
@@ -942,15 +1150,19 @@ public void ForceUpdateDirection(Vector3 newDirection)
 
     public void ResetToInitialState()
     {
+        isDead = false;
+        CancelJumpAndMovementCoroutines();
         transform.position = InitialPosition;
         transform.rotation = initialRotation;
         RB.linearVelocity = Vector3.zero;
         RB.angularVelocity = Vector3.zero;
+        RB.linearDamping = rigidbodyLinearDamping;
+        RB.angularDamping = rigidbodyAngularDamping;
         currentDirection = mainPointer.forward;
         isRotating = false;
         isGrounded = true;
         RB.freezeRotation = true;
-        RB.useGravity = false;
+        RB.useGravity = true;
          // Сбрасываем ускорение ← ДОБАВИТЬ ЭТО
     ResetSpeedBoost();
      // Восстанавливаем хрупкие тайлы ← ДОБАВИТЬ ЭТО
@@ -967,54 +1179,41 @@ public void ForceUpdateDirection(Vector3 newDirection)
    void HandleMovement()
 {
     if (isJumping) return;
-    if (ShouldSnapToGrid())
-    {
-        SnapToGrid();
-    }
 
-    // Оригинальная проверка (работает как раньше)
+    Vector3 moveDir = currentDirection.sqrMagnitude > 1e-6f ? currentDirection.normalized : Vector3.forward;
+
     bool hasObstacle = Physics.Raycast(
         transform.position, 
-        currentDirection, 
+        moveDir, 
         checkDistance, 
         collisionLayers);
 
-    // Дополнительная проверка на бомбу (только если нет препятствий)
     if (!hasObstacle)
-{
-    RaycastHit hit;
-    if (Physics.Raycast(transform.position, currentDirection, out hit, checkDistance))
     {
-        Bomb bomb = hit.collider.GetComponent<Bomb>();
-        if (bomb != null)
+        RaycastHit hit;
+        if (Physics.Raycast(transform.position, moveDir, out hit, checkDistance))
         {
-            hasObstacle = true;
-            
-            // ЕСЛИ БОМБА НЕ АКТИВИРОВАНА — ВЗРЫВАЕМ!
-            if (bomb != null && !bomb.isActivated)
+            Bomb bomb = hit.collider.GetComponent<Bomb>();
+            if (bomb != null)
             {
-                // Запускаем корутину прямо из куба
-                StartCoroutine(bomb.QuickExplode());
+                hasObstacle = true;
+                if (!bomb.isActivated)
+                    StartCoroutine(bomb.QuickExplode());
             }
         }
     }
-}
 
     if (hasObstacle)
     {
         if (!isColliding)
-        {
             StartCollision();
-        }
         RB.linearVelocity = Vector3.zero;
     }
     else
     {
         if (isColliding)
-        {
             EndCollision();
-        }
-        RB.linearVelocity = currentDirection * speed;
+        RB.linearVelocity = moveDir * speed;
     }
 }
 
@@ -1045,8 +1244,6 @@ public void ForceUpdateDirection(Vector3 newDirection)
     materialBlock.SetColor("_BaseColor", color); // Для URP/HDRP
     materialBlock.SetColor("_Color", color);    // Для стандартного шейдера
     renderer.SetPropertyBlock(materialBlock);
-    
-    Debug.Log($"Color set to: {color}"); // Добавьте этот лог
 }
 
     void OnDisable()
@@ -1092,6 +1289,7 @@ bool ShouldSnapToGrid()
 
   IEnumerator RotateToDirection(Vector3 newDirection)
     {
+         Debug.Log($"🔄 RotateToDirection START | from={currentDirection} to={newDirection}");
         if (isRotating) yield break;
         
         isRotating = true;
@@ -1206,17 +1404,27 @@ bool ShouldSnapToGrid()
 
     void PeriodicGroundCheck()
     {
-        if (isJumping) return; // Не проверяем землю во время прыжка
         isGrounded = CheckGround();
+        if (isJumping) return;
         if (!isGrounded) StartFalling();
     }
 
-    bool CheckGround() {
-    Debug.DrawRay(transform.position, Vector3.down * groundCheckDistance, Color.red, 0.5f);
-    bool grounded = Physics.Raycast(transform.position, Vector3.down, groundCheckDistance, groundMask);
-    Debug.Log($"Ground check: {grounded}");
-    return grounded;
-}
+    bool CheckGround()
+    {
+        if (_boxCollider != null)
+        {
+            Vector3 bottom = transform.TransformPoint(_boxCollider.center + Vector3.down * _boxCollider.size.y);
+            Vector3 origin = bottom + Vector3.up * 0.02f;
+            float rayLen = groundCheckDistance + 0.08f;
+            Debug.DrawRay(origin, Vector3.down * rayLen, Color.red, 0.5f);
+            if (Physics.Raycast(origin, Vector3.down, rayLen, groundMask, QueryTriggerInteraction.Ignore))
+                return true;
+        }
+
+        Vector3 centerOrigin = transform.position;
+        Debug.DrawRay(centerOrigin, Vector3.down * groundCheckDistance, Color.yellow, 0.5f);
+        return Physics.Raycast(centerOrigin, Vector3.down, groundCheckDistance, groundMask, QueryTriggerInteraction.Ignore);
+    }
 
     void StartFalling()
     {
@@ -1224,14 +1432,22 @@ bool ShouldSnapToGrid()
         RB.useGravity = true;
     }
 
-  void SnapToGrid() {
-    // Снэп только при почти нулевой скорости
-    if (RB.linearVelocity.magnitude < 0.1f) {
+    void CheckFallDeath()
+    {
+        if (!enableFallDeath || isDead) return;
+        if (editModeChecker != null && editModeChecker.isInEditMode) return;
+
+        float y = transform.position.y;
+        if (y < fallDeathWorldY || y < InitialPosition.y - maxFallBelowSpawnY)
+            GameOver();
+    }
+
+  void SnapToGrid()
+    {
         Vector3 snappedPos = GetSnappedPosition(transform.position);
         snappedPos.y = transform.position.y;
-        RB.MovePosition(snappedPos); // Плавное перемещение
+        RB.MovePosition(snappedPos);
     }
-}
 
    Vector3 GetSnappedPosition(Vector3 position)
     {
@@ -1256,11 +1472,10 @@ public void ForceGroundedState()
     
     // Дополнительные действия для корректного состояния:
     RB.freezeRotation = true;
-    RB.useGravity = false;
+    RB.useGravity = true;
+    RB.linearVelocity = Vector3.zero;
+    RB.angularVelocity = Vector3.zero;
     
-    // Принудительно снэпаем к сетке, если нужно
     SnapToGrid();
-    
-    Debug.Log("Forced grounded state: TRUE");
 }
 }
