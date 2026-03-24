@@ -19,9 +19,11 @@ public class Bomb : MonoBehaviour, IResettable
     public LayerMask playerLayer;
     
     public bool isActivated = false;
+    private bool isExploding = false;
     private Renderer bombRenderer;
     private Color originalColor;
     private Coroutine countdownRoutine;
+    private Coroutine quickExplodeRoutine;
     
     // Для ресета
     private Vector3 initialPosition;
@@ -106,10 +108,10 @@ public class Bomb : MonoBehaviour, IResettable
     void OnCollisionEnter(Collision collision)
     {
         DickControlledCube cube = collision.collider.GetComponent<DickControlledCube>();
-        if (cube != null && !isActivated)
+        if (cube != null)
         {
-            Debug.Log("💥 Куб врезался! Быстрый взрыв!");
-            StartCoroutine(QuickExplode());
+            Debug.Log($"💥 Прямой контакт с {cube.name}! Взрываемся немедленно.");
+            TriggerImmediateExplosion();
         }
     }
     
@@ -121,7 +123,28 @@ public class Bomb : MonoBehaviour, IResettable
         countdownRoutine = StartCoroutine(ExplodeCountdown());
     }
     
+    public void TriggerImmediateExplosion()
+    {
+        if (isExploding) return;
+        isExploding = true;
+        
+        // Прерываем обычный отсчет, если он был
+        if (countdownRoutine != null)
+        {
+            StopCoroutine(countdownRoutine);
+            countdownRoutine = null;
+        }
+        
+        quickExplodeRoutine = StartCoroutine(QuickExplodeInternal());
+    }
+    
     public IEnumerator QuickExplode()
+    {
+        TriggerImmediateExplosion();
+        yield break;
+    }
+
+    private IEnumerator QuickExplodeInternal()
     {
         isActivated = true;
         
@@ -160,9 +183,25 @@ public class Bomb : MonoBehaviour, IResettable
         if (explosionSound != null)
             AudioSource.PlayClipAtPoint(explosionSound, transform.position);
         
+        // Сначала отключаем визуальную часть бомбы
+        if (bombRenderer != null) bombRenderer.enabled = false;
+        GetComponent<Collider>().enabled = false;
+        
         float boxSize = (explosionSize - 1) * tileSize;
         Vector3 boxCenter = transform.position;
         Vector3 halfExtents = new Vector3(boxSize * 0.5f, 1f, boxSize * 0.5f);
+        
+        // Проверяем игрока СНАЧАЛА, чтобы цепочка взрывов была логичной
+        Collider[] players = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity, playerLayer);
+        foreach (Collider player in players)
+        {
+            DickControlledCube cube = player.GetComponent<DickControlledCube>();
+            if (cube != null)
+            {
+                Debug.Log("💥 Игрок задет взрывом бомбы!");
+                cube.GameOver();
+            }
+        }
         
         // Уничтожаем ящики
         Collider[] hitObjects = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity, destructibleLayer);
@@ -176,17 +215,6 @@ public class Bomb : MonoBehaviour, IResettable
             else
             {
                 obj.gameObject.SetActive(false);
-            }
-        }
-        
-        // Проверяем игрока
-        Collider[] players = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity, playerLayer);
-        foreach (Collider player in players)
-        {
-            DickControlledCube cube = player.GetComponent<DickControlledCube>();
-            if (cube != null)
-            {
-                cube.GameOver();
             }
         }
         
@@ -204,6 +232,7 @@ public class Bomb : MonoBehaviour, IResettable
     public void ResetObject()
     {
         isActivated = false;
+        isExploding = false;
         
         Vector3 pos = transform.position;
         pos.y = initialPosition.y;

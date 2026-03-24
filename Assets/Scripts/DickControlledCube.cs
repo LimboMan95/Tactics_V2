@@ -1376,9 +1376,13 @@ public void ForceUpdateDirection(Vector3 newDirection)
             Bomb bomb = hit.collider.GetComponent<Bomb>();
             if (bomb != null)
             {
-                hasObstacle = true;
-                if (!bomb.isActivated)
-                    StartCoroutine(bomb.QuickExplode());
+                // Попадание в бомбу ВСЕГДА инициирует немедленный взрыв
+                // (даже если она уже заведена детонатором)
+                Debug.Log($"💥 Контакт с бомбой {bomb.name}! Взрыв через {bomb.collisionDelay}с.");
+                bomb.TriggerImmediateExplosion();
+                
+                hasObstacle = true; // Чтобы куб остановился
+                return; // Выходим, чтобы GameOver() куба вызвался из логики бомбы
             }
         }
     }
