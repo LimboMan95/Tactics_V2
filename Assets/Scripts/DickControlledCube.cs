@@ -587,8 +587,20 @@ private IEnumerator JumpRoutine()
 
     yield return new WaitUntil(() => !isGrounded);
     yield return new WaitUntil(() => isGrounded);
+    
+    // Ждём, пока вертикальная скорость не станет почти нулевой или отрицательной (приземление)
+    // и даём физике успокоиться
+    float timeout = 0.5f;
+    while (timeout > 0 && isGrounded && Mathf.Abs(RB.linearVelocity.y) > 0.1f)
+    {
+        timeout -= Time.fixedDeltaTime;
+        yield return new WaitForFixedUpdate();
+    }
+    
     yield return new WaitForFixedUpdate();
-    yield return new WaitForFixedUpdate();
+    
+    // Останавливаем горизонтальное движение перед снэпом
+    RB.linearVelocity = new Vector3(0, RB.linearVelocity.y, 0);
     
     // Снэпаем позицию
     Vector3 snappedPos = GetSnappedPosition(transform.position);
@@ -610,7 +622,12 @@ private IEnumerator JumpRoutine()
         speed = originalSpeed * speedMultiplier;
     else
         speed = originalSpeed;
-    RB.linearVelocity = currentDirection * speed;
+    
+    // Если мы все еще на земле, возобновляем движение
+    if (isGrounded)
+    {
+        RB.linearVelocity = currentDirection * speed;
+    }
     
     movementEnabled = wasMovementEnabled;
     isGrounded = CheckGround();
@@ -1557,17 +1574,27 @@ bool ShouldSnapToGrid()
     {
         if (_boxCollider != null)
         {
-            Vector3 bottom = transform.TransformPoint(_boxCollider.center + Vector3.down * _boxCollider.size.y);
-            Vector3 origin = bottom + Vector3.up * 0.02f;
-            float rayLen = groundCheckDistance + 0.08f;
+            // Позиция нижней грани коллайдера (0.5 вниз от центра при размере 1)
+            float halfHeight = _boxCollider.size.y * 0.5f;
+            Vector3 bottom = transform.TransformPoint(_boxCollider.center + Vector3.down * halfHeight);
+            
+            // Начинаем чуть выше нижней грани, чтобы не застревать
+            Vector3 origin = bottom + Vector3.up * 0.05f;
+            
+            // Луч должен быть очень коротким, чтобы детектировать приземление точно
+            // 0.1f - 0.15f вполне достаточно для стабильного детектирования земли
+            float rayLen = 0.15f; 
+            
             Debug.DrawRay(origin, Vector3.down * rayLen, Color.red, 0.5f);
             if (Physics.Raycast(origin, Vector3.down, rayLen, groundMask, QueryTriggerInteraction.Ignore))
                 return true;
         }
 
         Vector3 centerOrigin = transform.position;
-        Debug.DrawRay(centerOrigin, Vector3.down * groundCheckDistance, Color.yellow, 0.5f);
-        return Physics.Raycast(centerOrigin, Vector3.down, groundCheckDistance, groundMask, QueryTriggerInteraction.Ignore);
+        // Для центрального луча тоже используем адекватную длину (чуть больше половины куба)
+        float centerRayLen = (cubeSize * 0.5f) + 0.15f;
+        Debug.DrawRay(centerOrigin, Vector3.down * centerRayLen, Color.yellow, 0.5f);
+        return Physics.Raycast(centerOrigin, Vector3.down, centerRayLen, groundMask, QueryTriggerInteraction.Ignore);
     }
 
     void StartFalling()
