@@ -7653,7 +7653,7 @@ MonoBehaviour:
   speedTileTag: Speed
   speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   speedMultiplier: 2
-  speedBoostDuration: 1.5
+  speedBoostDuration: 1.75
   InitialDirection: {x: 0, y: 0, z: 0}
   isRotating: 0
   isGrounded: 1
