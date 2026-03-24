@@ -133,6 +133,7 @@ public bool IsMovementEnabled => movementEnabled;
     private Color originalColor;
     private bool isColliding;
      private GameObject currentFinishTrigger; // Текущий триггер финиша
+    private GameObject flagObjectToRestore = null; // Флаг, который нужно вернуть при Стоп
     private Vector3 triggerEntryPoint; // Точка входа в триггер
     private GridObjectMover editModeChecker;
     [Header("Jump Tile Settings")]
@@ -1045,8 +1046,11 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
     ForceEndJumpOnly();
     isRotating = false;
     
-    // 1. Уничтожить флаг
-    Destroy(finishTrigger);
+    // 1. Скрываем флаг вместо удаления
+    flagObjectToRestore = finishTrigger;
+    if (flagObjectToRestore != null)
+        flagObjectToRestore.SetActive(false);
+        
     currentFinishTrigger = null;
     
     // 2. ВЫЗЫВАЕМ ВСЕ ГОТОВЫЕ МЕТОДЫ:
@@ -1313,6 +1317,17 @@ public void ForceUpdateDirection(Vector3 newDirection)
         // Показываем оригинальный куб
         SetCubeVisible(true);
         
+        // ВОССТАНАВЛИВАЕМ ФЛАГ
+        if (flagObjectToRestore != null)
+        {
+            flagObjectToRestore.SetActive(true);
+            flagObjectToRestore = null;
+        }
+        
+        // Закрываем окно финиша если оно было открыто
+        if (levelCompleteUI != null)
+            levelCompleteUI.SetActive(false);
+            
         transform.position = InitialPosition;
         transform.rotation = initialRotation;
         RB.linearVelocity = Vector3.zero;
