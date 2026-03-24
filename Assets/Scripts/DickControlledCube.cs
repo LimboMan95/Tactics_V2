@@ -87,6 +87,7 @@ public float speedBoostJumpMultiplier = 2f; // Во сколько раз дли
 public bool isJumping = false;
 private Vector3 jumpStartPosition;
 private Vector3 jumpTargetPosition;
+private float currentJumpDistanceActual;
 // НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ ДВУХФАЗНОГО ПРЫЖКА
 [Header("Two-Phase Jump")]
 public float phaseTwoStart = 0.7f; // 70% прыжка
@@ -522,11 +523,13 @@ public void PerformJump()
     
     _jumpRoutine = StartCoroutine(JumpRoutine());
 }
-private IEnumerator JumpRoutine()
+
+    private IEnumerator JumpRoutine()
 {
     if (isJumping || isRotating || !isGrounded) yield break;
     
     isJumping = true;
+    jumpStartPosition = transform.position;
     bool wasMovementEnabled = movementEnabled;
     movementEnabled = false;
 
@@ -538,9 +541,9 @@ private IEnumerator JumpRoutine()
     RB.angularVelocity = Vector3.zero;
     
     // Расчет дистанции с учётом ускорения
-    float currentJumpDistance = jumpDistance;
+    currentJumpDistanceActual = jumpDistance;
     if (isSpeedBoosted)
-        currentJumpDistance *= speedBoostJumpMultiplier;
+        currentJumpDistanceActual *= speedBoostJumpMultiplier;
     
     Vector3 jumpDirection = currentDirection.normalized;
     
@@ -551,7 +554,7 @@ private IEnumerator JumpRoutine()
     float flightTime = 2f * verticalSpeed / g;
     if (flightTime < 0.02f) flightTime = 0.02f;
 
-    float horizontalSpeed = currentJumpDistance / flightTime;
+    float horizontalSpeed = currentJumpDistanceActual / flightTime;
 
     RB.linearVelocity = jumpDirection * horizontalSpeed + Vector3.up * verticalSpeed;
 
@@ -882,33 +885,47 @@ void OnCollisionEnter(Collision collision)
     if (((1 << collision.gameObject.layer) & groundMask) != 0) return;
 
     // Проверяем слои препятствий и ящиков
-    int layerMask = collisionLayers | LayerMask.GetMask("Crate");
+    int crateLayer = LayerMask.NameToLayer("Crate");
+    int layerMask = collisionLayers | (crateLayer != -1 ? (1 << crateLayer) : 0);
+    
     if (((1 << collision.gameObject.layer) & layerMask) != 0)
     {
-        // ВАЖНО: В прыжке игнорируем препятствия, которые мы задели только "пузом"
+        // ВАЖНО: В прыжке игнорируем МЕЛКИЕ декоративные препятствия (ели, кусты), 
+        // которые мы задели только "пузом" (нижней частью коллайдера).
+        // НО: Если мы уже подлетаем к точке приземления (вторая половина прыжка), 
+        // любое препятствие (включая ящики) становится смертельным.
+        
         if (isJumping && !isGrounded)
         {
-            bool hitHigh = false;
-            foreach (ContactPoint contact in collision.contacts)
+            float horizontalDist = Vector3.Distance(
+                new Vector3(transform.position.x, 0, transform.position.z),
+                new Vector3(jumpStartPosition.x, 0, jumpStartPosition.z)
+            );
+
+            // Если мы в первой половине прыжка (пролетаем ПЕРВУЮ клетку)
+            if (horizontalDist < currentJumpDistanceActual * 0.5f)
             {
-                // Если точка контакта выше, чем нижняя часть нашего текущего (уменьшенного) коллайдера
-                // (0.5 - это самый низ, так что 0.3 дает небольшой зазор снизу)
-                float threshold = transform.position.y - (cubeSize * smallColliderSize * 0.3f);
-                if (contact.point.y > threshold)
+                bool hitHigh = false;
+                foreach (ContactPoint contact in collision.contacts)
                 {
-                    hitHigh = true;
-                    break;
+                    float threshold = transform.position.y - (cubeSize * smallColliderSize * 0.3f);
+                    if (contact.point.y > threshold)
+                    {
+                        hitHigh = true;
+                        break;
+                    }
+                }
+                
+                if (!hitHigh)
+                {
+                    Debug.Log($"🛡️ Пролет над {collision.gameObject.name} в 1-й фазе прыжка: задето только пузо");
+                    return;
                 }
             }
-            
-            if (!hitHigh)
-            {
-                Debug.Log($"🛡️ Пролет над {collision.gameObject.name}: задето только пузо");
-                return;
-            }
+            // Если мы во второй половине прыжка (клетка приземления) - ЛЮБОЙ контакт смертелен
         }
 
-        Debug.Log($"💥 СМЕРТЬ ОТ ФИЗИЧЕСКОГО КОНТАКТА: {collision.gameObject.name}");
+        Debug.Log($"💥 СМЕРТЬ ОТ КОНТАКТА: {collision.gameObject.name} (isJumping: {isJumping})");
         GameOver();
     }
 }
