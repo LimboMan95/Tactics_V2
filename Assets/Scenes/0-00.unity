@@ -753,6 +753,7 @@ MonoBehaviour:
   mainPointer: {fileID: 1943964059}
   visualPointer: {fileID: 1555010579}
   disableMovementOnReset: 1
+  resettableObjects: []
 --- !u!4 &265856492
 Transform:
   m_ObjectHideFlags: 0
@@ -2147,24 +2148,98 @@ MonoBehaviour:
   obstacleMask:
     serializedVersion: 2
     m_Bits: 8
-  checkDistance: 1
+  checkDistance: 0.6
+  rigidbodyLinearDamping: 0
+  rigidbodyAngularDamping: 0
+  applyZeroFrictionColliderMaterial: 1
   groundMask:
     serializedVersion: 2
     m_Bits: 64
   groundCheckDistance: 0.5
   cubeSize: 0.7
+  enableFallDeath: 1
+  fallDeathWorldY: -2.5
+  maxFallBelowSpawnY: 30
   directionTileTag: Vector
   tileActivationDelay: 0.3
   tileSize: 1
   snapThreshold: 0.5
   tileHighlightColor: {r: 0, g: 1, b: 1, a: 1}
   highlightDuration: 0.5
+  collisionColor: {r: 1, g: 0, b: 0, a: 1}
+  colorResetDelay: 2
+  collisionLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  levelCompleteLayer:
+    serializedVersion: 2
+    m_Bits: 0
+  levelCompleteUI: {fileID: 0}
+  levelCompleteDelay: 1
+  triggerCenterThreshold: 0.1
   mainPointer: {fileID: 1943964059}
   visualPointer: {fileID: 1555010579}
   movementEnabled: 0
   currentDirection: {x: 0, y: 0, z: 0}
+  jumpHeight: 1.3
+  cubeFragmentPrefab: {fileID: 0}
+  fragmentCount: 9
+  explosionForce: 10
+  explosionRandomness: {x: 2, y: 3, z: 2}
+  fragmentSize: 0.4
+  jumpDistance: 2.1
+  jumpDuration: 0.8
+  jumpCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.08000183
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  speedBoostJumpMultiplier: 2
+  isJumping: 0
+  phaseTwoStart: 0.7
+  smallColliderSize: 0.6
+  normalColliderSize: 1
+  fragileTileTag: FragileTile
+  speedTileTag: Speed
+  speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  speedMultiplier: 2
+  speedBoostDuration: 1.5
+  InitialDirection: {x: 0, y: 0, z: 0}
   isRotating: 0
   isGrounded: 1
+  InitialPosition: {x: 0, y: 0, z: 0}
+  RB: {fileID: 0}
+  startEnabled: 1
+  jumpTileTag: Jumper
+  jumpTileHighlightColor: {r: 0, g: 1, b: 0, a: 1}
 --- !u!114 &908340936
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2183,6 +2258,8 @@ MonoBehaviour:
   snapToGround: 1
   lockYPosition: 0
   autoAdjustHeight: 1
+  useFixedSnapping: 0
+  gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
 --- !u!114 &908340942
 MonoBehaviour:
@@ -2201,8 +2278,8 @@ MonoBehaviour:
     m_Bits: 8
   collisionColor: {r: 1, g: 0, b: 0, a: 1}
   colorResetDelay: 2
+  raycastDistance: 1
   debugMode: 1
-  debugRayDuration: 2
 --- !u!114 &908340947
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2241,6 +2318,9 @@ MonoBehaviour:
   validColor: {r: 0.2, g: 1, b: 0.2, a: 0.7}
   invalidColor: {r: 1, g: 0.2, b: 0.2, a: 0.7}
   rotationColor: {r: 1, g: 0.8, b: 0.2, a: 0.7}
+  disableUIBlocking: 1
+  selectionRadius: 0.5
+  isInEditMode: 0
 --- !u!1 &1030586098
 GameObject:
   m_ObjectHideFlags: 0

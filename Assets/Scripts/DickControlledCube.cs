@@ -6,33 +6,33 @@ using System.Collections.Generic;
 public class DickControlledCube : MonoBehaviour
 {
     [Header("Movement Settings")]
-    public float speed = 5f;
-    public float rotationSpeed = 10f;
+    public float speed = 2f;
+    public float rotationSpeed = 180f;
     public LayerMask obstacleMask;
-    public float checkDistance = 1f;
+    public float checkDistance = 0.6f;
 
     [Header("Physics (smooth constant speed)")]
     [Tooltip("Rigidbody damping съедает скорость между FixedUpdate — даёт рывки по клеткам. Для аркады обычно 0.")]
-    [SerializeField] private float rigidbodyLinearDamping = 0f;
-    [SerializeField] private float rigidbodyAngularDamping = 0f;
+    public float rigidbodyLinearDamping = 0f;
+    public float rigidbodyAngularDamping = 0f;
     [Tooltip("Трение с полом тормозит тело даже при выставлении velocity каждый кадр.")]
-    [SerializeField] private bool applyZeroFrictionColliderMaterial = true;
+    public bool applyZeroFrictionColliderMaterial = true;
 
     [Header("Ground Settings")]
     public LayerMask groundMask;
     public float groundCheckDistance = 0.5f;
-    public float cubeSize = 1f;
+    public float cubeSize = 0.7f;
 
     [Header("Fall death")]
     [Tooltip("Если выключено — падение за карту не убивает (только бомба и т.п.).")]
-    [SerializeField] private bool enableFallDeath = true;
+    public bool enableFallDeath = true;
     [Tooltip("Смерть, если Y ниже этой мировой координаты (подстрой под пол уровня).")]
-    [SerializeField] private float fallDeathWorldY = -12f;
+    public float fallDeathWorldY = -2.5f;
     [Tooltip("Дополнительно: смерть, если ниже точки старта куба больше чем на столько метров.")]
-    [SerializeField] private float maxFallBelowSpawnY = 30f;
+    public float maxFallBelowSpawnY = 30f;
 
     [Header("Direction Tile Settings")]
-    public string directionTileTag = "DirectionTile";
+    public string directionTileTag = "Vector";
     public float tileActivationDelay = 0.3f;
     public float tileSize = 1f; 
 
@@ -43,13 +43,13 @@ public class DickControlledCube : MonoBehaviour
      // Добавляем новые настройки цвета
     [Header("Collision Settings")]
     public Color collisionColor = Color.red;
-    public float colorResetDelay = 0.5f;
+    public float colorResetDelay = 2f;
     public LayerMask collisionLayers;
      [Header("Level Completion")]
     public LayerMask levelCompleteLayer; // Слой для триггера завершения уровня
     public GameObject levelCompleteUI; // Ссылка на UI окно завершения уровня
      public float levelCompleteDelay = 1f; // Задержка перед показом UI
-    public float triggerCenterThreshold = 0.5f; // Порог центра клетки (0.5 = середина)
+    public float triggerCenterThreshold = 0.1f; // Порог центра клетки (0.5 = середина)
 
 
     [Header("References")]
@@ -61,7 +61,7 @@ public class DickControlledCube : MonoBehaviour
     public Vector3 currentDirection = Vector3.forward;
     [Header("Jump Settings")]
 [Tooltip("Высота вершины дуги в мировых единицах (1 клетка при tileSize=1 → 1).")]
-public float jumpHeight = 1f;
+public float jumpHeight = 1.3f;
 
     [Header("Explosion Settings")]
     [Tooltip("Префаб для фрагментов куба при взрыве")]
@@ -79,10 +79,10 @@ public float jumpHeight = 1f;
     private Vector3 originalScale;
     private bool isExploded = false;
 [Tooltip("Дальность по горизонтали в мировых единицах (2 клетки при tileSize=1 → 2). Скорость vx считается из времени полёта.")]
-public float jumpDistance = 2f;
+public float jumpDistance = 2.1f;
 [Tooltip("Длительность фазы уменьшенного коллайдера (сек). Не задаёт дальность — она из jumpDistance и jumpHeight.")]
 public float jumpDuration = 0.8f;
-public AnimationCurve jumpCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.5f, 1f), new Keyframe(1, 0));
+public AnimationCurve jumpCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.08f, 1f), new Keyframe(1, 0));
 public float speedBoostJumpMultiplier = 2f; // Во сколько раз длиннее прыжок при ускорении
 public bool isJumping = false;
 private Vector3 jumpStartPosition;
@@ -98,10 +98,10 @@ private Vector3 originalColliderCenter;
 [Header("Fragile Tile Settings")]
 public string fragileTileTag = "FragileTile";
 [Header("Speed Tile Settings")]
-public string speedTileTag = "SpeedTile";
-public Color speedTileHighlightColor = Color.yellow;
+public string speedTileTag = "Speed";
+public Color speedTileHighlightColor = new Color(1, 0.92f, 0.015f, 1);
 public float speedMultiplier = 2f;
-public float speedBoostDuration = 3f;
+public float speedBoostDuration = 1.5f;
 private bool isSpeedBoosted = false; // ← ПЕРЕМЕЩАЕМ СЮДА!
 
 private float originalSpeed;
@@ -137,7 +137,7 @@ public bool IsMovementEnabled => movementEnabled;
     private Vector3 triggerEntryPoint; // Точка входа в триггер
     private GridObjectMover editModeChecker;
     [Header("Jump Tile Settings")]
-public string jumpTileTag = "JumpTile"; // Тэг для тайлов прыжка
+public string jumpTileTag = "Jumper"; // Тэг для тайлов прыжка
 public Color jumpTileHighlightColor = Color.green; // Цвет подсветки для тайла прыжка
 
 private GameObject lastJumpTile;
