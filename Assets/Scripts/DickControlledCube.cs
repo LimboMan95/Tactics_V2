@@ -1358,8 +1358,12 @@ public void ForceUpdateDirection(Vector3 newDirection)
 
     Vector3 moveDir = currentDirection.sqrMagnitude > 1e-6f ? currentDirection.normalized : Vector3.forward;
 
+    // Поднимаем начало луча чуть выше центра куба, 
+    // чтобы не цепляться за края соседних тайлов при микро-просадках
+    Vector3 rayOrigin = transform.position + Vector3.up * 0.1f;
+
     bool hasObstacle = Physics.Raycast(
-        transform.position, 
+        rayOrigin, 
         moveDir, 
         checkDistance, 
         collisionLayers);
@@ -1367,7 +1371,7 @@ public void ForceUpdateDirection(Vector3 newDirection)
     if (!hasObstacle)
     {
         RaycastHit hit;
-        if (Physics.Raycast(transform.position, moveDir, out hit, checkDistance))
+        if (Physics.Raycast(rayOrigin, moveDir, out hit, checkDistance))
         {
             Bomb bomb = hit.collider.GetComponent<Bomb>();
             if (bomb != null)
@@ -1387,7 +1391,31 @@ public void ForceUpdateDirection(Vector3 newDirection)
     }
     else
     {
-        RB.linearVelocity = moveDir * speed;
+        // 1. Устанавливаем горизонтальную скорость
+        Vector3 newVelocity = moveDir * speed;
+        
+        // 2. Если мы на земле (даже если это триггер), принудительно держим Y 
+        // и сбрасываем вертикальную скорость, чтобы не "проваливаться" в триггеры
+        if (isGrounded && !isJumping)
+        {
+            newVelocity.y = 0;
+            
+            // Если мы слишком сильно просели (например, на триггере), 
+            // плавно возвращаем куб на высоту текущей поверхности (из CheckGround)
+            if (Mathf.Abs(transform.position.y - currentGroundY) > 0.005f)
+            {
+                Vector3 pos = transform.position;
+                pos.y = Mathf.MoveTowards(pos.y, currentGroundY, Time.fixedDeltaTime * 10f);
+                transform.position = pos;
+            }
+        }
+        else
+        {
+            // Если падаем или прыгаем, сохраняем текущую вертикальную скорость физики
+            newVelocity.y = RB.linearVelocity.y;
+        }
+
+        RB.linearVelocity = newVelocity;
     }
 }
 
@@ -1571,6 +1599,8 @@ bool ShouldSnapToGrid()
         if (!isGrounded) StartFalling();
     }
 
+    private float currentGroundY = 0f;
+
     bool CheckGround()
     {
         if (_boxCollider != null)
@@ -1587,15 +1617,26 @@ bool ShouldSnapToGrid()
             float rayLen = 0.15f; 
             
             Debug.DrawRay(origin, Vector3.down * rayLen, Color.red, 0.5f);
-            if (Physics.Raycast(origin, Vector3.down, rayLen, groundMask, QueryTriggerInteraction.Ignore))
+            // Используем Collide, чтобы видеть хрупкие тайлы (которые являются триггерами)
+            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, rayLen, groundMask, QueryTriggerInteraction.Collide))
+            {
+                currentGroundY = hit.point.y + (cubeSize * 0.5f);
                 return true;
+            }
         }
 
         Vector3 centerOrigin = transform.position;
         // Для центрального луча тоже используем адекватную длину (чуть больше половины куба)
         float centerRayLen = (cubeSize * 0.5f) + 0.15f;
         Debug.DrawRay(centerOrigin, Vector3.down * centerRayLen, Color.yellow, 0.5f);
-        return Physics.Raycast(centerOrigin, Vector3.down, centerRayLen, groundMask, QueryTriggerInteraction.Ignore);
+        // Используем Collide, чтобы видеть хрупкие тайлы (которые являются триггерами)
+        if (Physics.Raycast(centerOrigin, Vector3.down, out RaycastHit hitCenter, centerRayLen, groundMask, QueryTriggerInteraction.Collide))
+        {
+            currentGroundY = hitCenter.point.y + (cubeSize * 0.5f);
+            return true;
+        }
+
+        return false;
     }
 
     void StartFalling()
