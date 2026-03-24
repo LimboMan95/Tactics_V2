@@ -446,34 +446,42 @@ private void CheckAllImmediateActivations()
 }
 public void ResetAllResettableObjects()
 {
-    // Ищем активные объекты с интерфейсом
-    MonoBehaviour[] allObjects = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
     int resetCount = 0;
     
-    foreach (MonoBehaviour obj in allObjects)
-    {
-        IResettable resettable = obj as IResettable;
-        if (resettable != null)
-        {
-            Debug.Log($"Resetting (active): {obj.name}");
-            resettable.ResetObject();
-            resetCount++;
-        }
-    }
-    
-    // Ищем ВСЕ объекты с компонентом Bomb (включая неактивные!)
+    // 1. Ищем ВСЕ бомбы (включая выключенные)
     Bomb[] bombs = Resources.FindObjectsOfTypeAll<Bomb>();
     foreach (Bomb bomb in bombs)
     {
-        if (bomb.gameObject.scene.isLoaded) // Проверяем что в текущей сцене
+        if (bomb.gameObject.scene.isLoaded)
         {
-            Debug.Log($"🔥 Resetting bomb (inactive): {bomb.name}");
             bomb.ResetObject();
             resetCount++;
         }
     }
     
-    Debug.Log($"✅ Сброшено {resetCount} объектов");
+    // 2. Ищем ВСЕ ящики (включая выключенные)
+    Crate[] crates = Resources.FindObjectsOfTypeAll<Crate>();
+    foreach (Crate crate in crates)
+    {
+        if (crate.gameObject.scene.isLoaded)
+        {
+            crate.ResetObject();
+            resetCount++;
+        }
+    }
+    
+    // 3. Ищем любые другие IResettable, которые сейчас активны
+    MonoBehaviour[] activeMono = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+    foreach (MonoBehaviour mono in activeMono)
+    {
+        if (mono is IResettable resettable && !(mono is Bomb) && !(mono is Crate))
+        {
+            resettable.ResetObject();
+            resetCount++;
+        }
+    }
+    
+    Debug.Log($"✅ Автоматически сброшено {resetCount} объектов (Бомбы и Ящики найдены автоматически)");
 }
 
 private bool CheckImmediateFlagActivation()
