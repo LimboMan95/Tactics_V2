@@ -106,6 +106,7 @@ void StartExecutionPhase()
     {
         // Сбрасываем в динамический режим
         cubeController.ResetToInitialState(); // Не kinematic
+        cubeController.movementEnabled = true; // ← ВКЛЮЧАЕМ ДВИЖЕНИЕ!
         cubeController.enabled = true;
     }
     

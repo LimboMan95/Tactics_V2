@@ -62,6 +62,22 @@ public class DickControlledCube : MonoBehaviour
     [Header("Jump Settings")]
 [Tooltip("Высота вершины дуги в мировых единицах (1 клетка при tileSize=1 → 1).")]
 public float jumpHeight = 1f;
+
+    [Header("Explosion Settings")]
+    [Tooltip("Префаб для фрагментов куба при взрыве")]
+    public GameObject cubeFragmentPrefab;
+    [Tooltip("Количество фрагментов при взрыве (8-11)")]
+    [Range(8, 11)] public int fragmentCount = 9;
+    [Tooltip("Сила взрыва, разбрасывающая фрагменты")]
+    public float explosionForce = 10f;
+    [Tooltip("Разброс силы взрыва по осям")]
+    public Vector3 explosionRandomness = new Vector3(2f, 3f, 2f);
+    [Tooltip("Размер фрагментов относительно оригинального куба")]
+    public float fragmentSize = 0.4f;
+    
+    private List<GameObject> currentFragments = new List<GameObject>();
+    private Vector3 originalScale;
+    private bool isExploded = false;
 [Tooltip("Дальность по горизонтали в мировых единицах (2 клетки при tileSize=1 → 2). Скорость vx считается из времени полёта.")]
 public float jumpDistance = 2f;
 [Tooltip("Длительность фазы уменьшенного коллайдера (сек). Не задаёт дальность — она из jumpDistance и jumpHeight.")]
@@ -237,8 +253,126 @@ public void GameOver()
     if (isDead) return;
     isDead = true;
     Debug.Log("💥 КУБ ВЗОРВАН!");
+    
+    // Останавливаем движение оригинального куба
     DisableMovement();
-    // Тут можно добавить эффекты, рестарт и т.д.
+    
+    // Вместо просто остановки - взрываем куб на фрагменты
+    ExplodeIntoFragments();
+    
+    // Скрываем оригинальный куб
+    SetCubeVisible(false);
+}
+
+private void ExplodeIntoFragments()
+{
+    if (cubeFragmentPrefab == null)
+    {
+        Debug.LogWarning("Cube fragment prefab not assigned! Using simple cube.");
+        // Создаем простые кубы если префаб не назначен
+        CreateSimpleFragments();
+        return;
+    }
+    
+    ClearExistingFragments();
+    isExploded = true;
+    
+    Vector3 explosionCenter = transform.position;
+    
+    for (int i = 0; i < fragmentCount; i++)
+    {
+        GameObject fragment = Instantiate(cubeFragmentPrefab, explosionCenter, Random.rotation);
+        fragment.transform.localScale = Vector3.one * fragmentSize;
+        
+        // Добавляем физику
+        Rigidbody rb = fragment.GetComponent<Rigidbody>();
+        if (rb == null)
+            rb = fragment.AddComponent<Rigidbody>();
+            
+        // Применяем случайную силу взрыва
+        Vector3 randomForce = new Vector3(
+            Random.Range(-explosionRandomness.x, explosionRandomness.x),
+            Random.Range(explosionRandomness.y * 0.5f, explosionRandomness.y),
+            Random.Range(-explosionRandomness.z, explosionRandomness.z)
+        ) * explosionForce;
+        
+        rb.AddForce(randomForce, ForceMode.Impulse);
+        rb.AddTorque(Random.insideUnitSphere * explosionForce * 0.5f, ForceMode.Impulse);
+        
+        currentFragments.Add(fragment);
+    }
+}
+
+private void CreateSimpleFragments()
+{
+    ClearExistingFragments();
+    isExploded = true;
+    
+    Vector3 explosionCenter = transform.position;
+    
+    for (int i = 0; i < fragmentCount; i++)
+    {
+        GameObject fragment = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        fragment.transform.position = explosionCenter;
+        fragment.transform.localScale = Vector3.one * fragmentSize;
+        fragment.GetComponent<Renderer>().material.color = GetComponent<Renderer>().material.color;
+        
+        // Добавляем физику
+        Rigidbody rb = fragment.AddComponent<Rigidbody>();
+        
+        // Применяем случайную силу взрыва
+        Vector3 randomForce = new Vector3(
+            Random.Range(-explosionRandomness.x, explosionRandomness.x),
+            Random.Range(explosionRandomness.y * 0.5f, explosionRandomness.y),
+            Random.Range(-explosionRandomness.z, explosionRandomness.z)
+        ) * explosionForce;
+        
+        rb.AddForce(randomForce, ForceMode.Impulse);
+        rb.AddTorque(Random.insideUnitSphere * explosionForce * 0.5f, ForceMode.Impulse);
+        
+        currentFragments.Add(fragment);
+    }
+}
+
+private void ClearExistingFragments()
+{
+    foreach (GameObject fragment in currentFragments)
+    {
+        if (fragment != null)
+            Destroy(fragment);
+    }
+    currentFragments.Clear();
+}
+
+private void SetCubeVisible(bool visible)
+{
+    Renderer renderer = GetComponent<Renderer>();
+    if (renderer != null)
+        renderer.enabled = visible;
+        
+    Collider collider = GetComponent<Collider>();
+    if (collider != null)
+        collider.enabled = visible;
+}
+
+public void ReassembleCube()
+{
+    if (!isExploded) return;
+    
+    Debug.Log("🧩 Собираем куб обратно!");
+    
+    // Удаляем все фрагменты
+    ClearExistingFragments();
+    
+    // Показываем оригинальный куб
+    SetCubeVisible(true);
+    
+    // Сбрасываем состояние смерти
+    isDead = false;
+    isExploded = false;
+    
+    // Сбрасываем физику
+    ResetPhysics();
 }
 
 // ДОБАВЛЯЕМ МЕТОД ДЛЯ АКТИВАЦИИ СКОРОСТИ
@@ -1060,16 +1194,17 @@ public void StopGame()
 {
     Debug.Log("=== STOP GAME ===");
 
-    CancelJumpAndMovementCoroutines();
-    DisableMovement(); 
-    ResetPhysics();
+    // Сбрасываем в начальное состояние (позиция, вращение, физика, остановка, очистка фрагментов)
+    ResetToInitialState();
+    
+    // Сбрасываем цвета тайлов
     ResetAllTileColors();
     ResetSpeedBoost();
     ResetAllFragileTiles();
     
     ResetAllResettableObjects();
     
-    Debug.Log("Игра остановлена");
+    Debug.Log("Игра остановлена и сброшена к старту");
 }
 
 public void ResetAllTileColors()
@@ -1151,7 +1286,16 @@ public void ForceUpdateDirection(Vector3 newDirection)
     public void ResetToInitialState()
     {
         isDead = false;
+        isExploded = false; // На всякий случай сбрасываем здесь тоже
+        movementEnabled = false; // Всегда останавливаем при сбросе
         CancelJumpAndMovementCoroutines();
+        
+        // Удаляем фрагменты если они были
+        ClearExistingFragments();
+        
+        // Показываем оригинальный куб
+        SetCubeVisible(true);
+        
         transform.position = InitialPosition;
         transform.rotation = initialRotation;
         RB.linearVelocity = Vector3.zero;
