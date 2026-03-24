@@ -32,6 +32,19 @@ public class FragileTile : MonoBehaviour
         
         if (isCubeOnTile && !isBroken && cube != null)
         {
+            // Мгновенное разрушение при прыжке без ускорения
+            // Но только если центр куба действительно над этим тайлом (чтобы не ломать соседние при приземлении)
+            if (cube.isJumping && !cube.IsSpeedBoosted)
+            {
+                Vector3 localPos = transform.InverseTransformPoint(cube.transform.position);
+                if (Mathf.Abs(localPos.x) < 0.3f && Mathf.Abs(localPos.z) < 0.3f)
+                {
+                    Debug.Log($"💥 Прыжок на {gameObject.name} без ускорения! Мгновенное разрушение.");
+                    BreakTilePermanently();
+                    return;
+                }
+            }
+
             // Рассчитываем успеет ли куб проехать
             float cubeSpeed = cube.GetCurrentSpeed();
             float timeToCross = tileLength / cubeSpeed;
@@ -43,10 +56,10 @@ public class FragileTile : MonoBehaviour
                 tileRenderer.material.color = Color.Lerp(originalColor, warningColor, blinkSpeed);
             }
 
-            // Проверяем разрушение
+            // Проверяем разрушение по таймеру
             if (Time.time - cubeEnterTime >= breakDelay)
             {
-                BreakTilePermanently(); // ← Теперь навсегда!
+                BreakTilePermanently();
             }
         }
     }
@@ -57,30 +70,20 @@ public class FragileTile : MonoBehaviour
     if (editModeChecker != null && editModeChecker.isInEditMode) return;
     if (isBroken) return;
     
-    cube = other.GetComponent<DickControlledCube>();
-    if (cube != null)
+    var foundCube = other.GetComponent<DickControlledCube>();
+    if (foundCube != null)
     {
-        // ← ТУТ ДОБАВЛЯЕМ НОВУЮ ЛОГИКУ!
-        // Проверяем: прыжок БЕЗ ускорения = мгновенное разрушение
-        if (cube.isJumping && !cube.IsSpeedBoosted)
-        {
-            Debug.Log("💥 Прыжок БЕЗ ускорения! Мгновенное разрушение!");
-            BreakTilePermanently();
-            return;
-        }
-        
-        // Все остальные случаи - обычная логика
+        cube = foundCube;
         isCubeOnTile = true;
         cubeEnterTime = Time.time;
         
         // Логи для отладки
-        if (cube.isJumping && cube.IsSpeedBoosted)
+        if (cube.isJumping)
         {
-            Debug.Log("🚀 Прыжок С ускорением! Проверяем успеет ли проехать...");
-        }
-        else if (cube.IsSpeedBoosted)
-        {
-            Debug.Log("⚡ Только ускорение! Проверяем успеет ли проехать...");
+            if (cube.IsSpeedBoosted)
+                Debug.Log("🚀 Прыжок С ускорением на хрупкий тайл!");
+            else
+                Debug.Log("👟 Прыжок БЕЗ ускорения на хрупкий тайл (ждем центра для разрушения)");
         }
     }
 }
