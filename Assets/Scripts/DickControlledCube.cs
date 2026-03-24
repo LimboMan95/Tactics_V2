@@ -129,10 +129,9 @@ public Vector3 InitialDirection;
 public Rigidbody RB;
 public bool startEnabled = true;
 public bool IsMovementEnabled => movementEnabled;
- private MaterialPropertyBlock materialBlock;
+    private MaterialPropertyBlock materialBlock;
     private Color originalColor;
-    private bool isColliding;
-     private GameObject currentFinishTrigger; // Текущий триггер финиша
+    private GameObject currentFinishTrigger; // Текущий триггер финиша
     private GameObject flagObjectToRestore = null; // Флаг, который нужно вернуть при Стоп
     private Vector3 triggerEntryPoint; // Точка входа в триггер
     private GridObjectMover editModeChecker;
@@ -254,6 +253,9 @@ public void GameOver()
     if (isDead) return;
     isDead = true;
     Debug.Log("💥 КУБ ВЗОРВАН!");
+    
+    // Останавливаем все корутины (прыжок, поворот и т.д.)
+    CancelJumpAndMovementCoroutines();
     
     // Останавливаем движение оригинального куба
     DisableMovement();
@@ -553,41 +555,35 @@ private IEnumerator JumpRoutine()
 
     RB.linearVelocity = jumpDirection * horizontalSpeed + Vector3.up * verticalSpeed;
 
-    float colliderPhaseDuration = Mathf.Min(jumpDuration, flightTime * 0.98f);
-
     BoxCollider boxCol = GetComponent<BoxCollider>();
-    float elapsed = 0f;
-
-    while (elapsed < colliderPhaseDuration && isJumping)
+    
+    // Уменьшаем коллайдер немедленно при прыжке
+    if (boxCol != null)
     {
-        elapsed += Time.deltaTime;
-        float progress = colliderPhaseDuration > 1e-4f ? elapsed / colliderPhaseDuration : 1f;
-        
+        boxCol.size = Vector3.one * smallColliderSize;
+        boxCol.center = Vector3.zero;
+    }
+
+    // Ждем пока оторвемся от земли
+    yield return new WaitUntil(() => !isGrounded);
+    
+    // Пока мы в воздухе, держим коллайдер маленьким
+    while (!isGrounded && isJumping)
+    {
         if (boxCol != null)
         {
-            if (progress < phaseTwoStart)
-            {
-                boxCol.size = Vector3.one * smallColliderSize;
-                boxCol.center = Vector3.zero;
-            }
-            else
-            {
-                boxCol.size = Vector3.one * normalColliderSize;
-                boxCol.center = Vector3.zero;
-            }
+            boxCol.size = Vector3.one * smallColliderSize;
+            boxCol.center = Vector3.zero;
         }
-        
         yield return null;
     }
-    
+
+    // Приземлились! Восстанавливаем коллайдер
     if (boxCol != null)
     {
         boxCol.size = originalColliderSize;
         boxCol.center = originalColliderCenter;
     }
-
-    yield return new WaitUntil(() => !isGrounded);
-    yield return new WaitUntil(() => isGrounded);
     
     // Ждём, пока вертикальная скорость не станет почти нулевой или отрицательной (приземление)
     // и даём физике успокоиться
@@ -632,22 +628,6 @@ private IEnumerator JumpRoutine()
     
     movementEnabled = wasMovementEnabled;
     isGrounded = CheckGround();
-    
-    // Проверка на ящик
-    Collider[] landingCrates = Physics.OverlapBox(
-        transform.position,
-        new Vector3(cubeSize * 0.4f, 0.3f, cubeSize * 0.4f),
-        Quaternion.identity,
-        LayerMask.GetMask("Crate")
-    );
-    
-    if (landingCrates.Length > 0)
-    {
-        Debug.Log("📦 Приземлился на ящик!");
-        if (!isColliding) StartCollision();
-        RB.linearVelocity = Vector3.zero;
-        movementEnabled = false;
-    }
     
     Debug.Log($"Jump completed. Grounded: {isGrounded}");
     }
@@ -911,6 +891,23 @@ void HighlightJumpTile(GameObject tile)
     }
 }
 
+void OnCollisionEnter(Collision collision)
+{
+    if (editModeChecker != null && editModeChecker.isInEditMode) return;
+    if (isDead) return;
+
+    // Игнорируем столкновения с землей (слой groundMask)
+    if (((1 << collision.gameObject.layer) & groundMask) != 0) return;
+
+    // Проверяем слои препятствий и ящиков
+    int layerMask = collisionLayers | LayerMask.GetMask("Crate");
+    if (((1 << collision.gameObject.layer) & layerMask) != 0)
+    {
+        Debug.Log($"💥 СМЕРТЬ ОТ ФИЗИЧЕСКОГО КОНТАКТА: {collision.gameObject.name}");
+        GameOver();
+    }
+}
+
 void OnTriggerStay(Collider other)
 {
     if (editModeChecker != null && editModeChecker.isInEditMode) return;
@@ -994,7 +991,6 @@ void OnTriggerStay(Collider other)
         isOnJumpTile = false;
         lastDirectionTile = null;
         lastJumpTile = null;
-        isColliding = false;
         currentFinishTrigger = null;
 
         if (_boxCollider != null)
@@ -1070,7 +1066,6 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
     // Сбрасываем дополнительные флаги
     isJumping = false;
     isRotating = false;
-    isColliding = false;
     
     // Делаем kinematic на всякий случай
     if (RB != null) RB.isKinematic = true;
@@ -1381,37 +1376,15 @@ public void ForceUpdateDirection(Vector3 newDirection)
 
     if (hasObstacle)
     {
-        if (!isColliding)
-            StartCollision();
+        if (!isDead)
+            GameOver();
         RB.linearVelocity = Vector3.zero;
     }
     else
     {
-        if (isColliding)
-            EndCollision();
         RB.linearVelocity = moveDir * speed;
     }
 }
-
-     void StartCollision()
-    {
-        isColliding = true;
-        SetColor(collisionColor);
-        DisableMovement();
-        // Если нужно автоматическое восстановление цвета
-        if (colorResetDelay > 0)
-        {
-            Invoke("EndCollision", colorResetDelay);
-        }
-    }
-
-    void EndCollision()
-    {
-        if (!isColliding) return;
-        
-        isColliding = false;
-        SetColor(originalColor);
-    }
 
     void SetColor(Color color)
 {
@@ -1425,7 +1398,6 @@ public void ForceUpdateDirection(Vector3 newDirection)
     void OnDisable()
 {
     CancelInvoke();
-    EndCollision();
     
     // ← ДОБАВИТЬ: Сброс ссылки на флаг
     currentFinishTrigger = null;
