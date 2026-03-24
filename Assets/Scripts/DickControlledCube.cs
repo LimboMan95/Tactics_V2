@@ -90,7 +90,7 @@ private Vector3 jumpTargetPosition;
 // НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ ДВУХФАЗНОГО ПРЫЖКА
 [Header("Two-Phase Jump")]
 public float phaseTwoStart = 0.7f; // 70% прыжка
-public float smallColliderSize = 0.6f; // Размер коллайдера в первой фазе
+public float smallColliderSize = 0.2f; // Размер коллайдера в первой фазе
 public float normalColliderSize = 1f; // Нормальный размер
 private Vector3 originalColliderSize;
 private Vector3 originalColliderCenter;
@@ -903,6 +903,29 @@ void OnCollisionEnter(Collision collision)
     int layerMask = collisionLayers | LayerMask.GetMask("Crate");
     if (((1 << collision.gameObject.layer) & layerMask) != 0)
     {
+        // ВАЖНО: В прыжке игнорируем препятствия, которые мы задели только "пузом"
+        if (isJumping && !isGrounded)
+        {
+            bool hitHigh = false;
+            foreach (ContactPoint contact in collision.contacts)
+            {
+                // Если точка контакта выше, чем нижняя часть нашего текущего (уменьшенного) коллайдера
+                // (0.5 - это самый низ, так что 0.3 дает небольшой зазор снизу)
+                float threshold = transform.position.y - (cubeSize * smallColliderSize * 0.3f);
+                if (contact.point.y > threshold)
+                {
+                    hitHigh = true;
+                    break;
+                }
+            }
+            
+            if (!hitHigh)
+            {
+                Debug.Log($"🛡️ Пролет над {collision.gameObject.name}: задето только пузо");
+                return;
+            }
+        }
+
         Debug.Log($"💥 СМЕРТЬ ОТ ФИЗИЧЕСКОГО КОНТАКТА: {collision.gameObject.name}");
         GameOver();
     }

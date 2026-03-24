@@ -65,6 +65,7 @@ public class CubeSettingsSyncer : EditorWindow
         string jumpTileTag = sourceCube.jumpTileTag;
         Color jumpTileHighlightColor = sourceCube.jumpTileHighlightColor;
         Color speedTileHighlightColor = sourceCube.speedTileHighlightColor;
+        float smallColliderSize = sourceCube.smallColliderSize;
 
         // 2. Find all scenes
         string[] sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { "Assets/Scenes" });
@@ -107,6 +108,7 @@ public class CubeSettingsSyncer : EditorWindow
                 cube.jumpTileTag = jumpTileTag;
                 cube.jumpTileHighlightColor = jumpTileHighlightColor;
                 cube.speedTileHighlightColor = speedTileHighlightColor;
+                cube.smallColliderSize = smallColliderSize;
                 
                 EditorUtility.SetDirty(cube);
                 changed = true;

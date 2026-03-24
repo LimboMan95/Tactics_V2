@@ -2815,7 +2815,7 @@ MonoBehaviour:
   speedBoostJumpMultiplier: 2
   isJumping: 0
   phaseTwoStart: 0.7
-  smallColliderSize: 0.6
+  smallColliderSize: 0.2
   normalColliderSize: 1
   fragileTileTag: FragileTile
   speedTileTag: Speed
