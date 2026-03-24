@@ -817,29 +817,11 @@ void CheckJumpTileUnderneath()
     }
 }
 
-// Метод подсветки тайла прыжка
-void HighlightJumpTile(GameObject tile)
-{
-    // Сбрасываем предыдущую подсветку
-    if (lastHighlightedTile != null && lastHighlightedTile != tile)
+    // Метод подсветки тайла прыжка
+    void HighlightJumpTile(GameObject tile)
     {
-        ResetTileColor(lastHighlightedTile);
+        HighlightTile(tile, jumpTileHighlightColor);
     }
-
-    Renderer tileRenderer = tile.GetComponent<Renderer>();
-    if (tileRenderer != null)
-    {
-        // Сохраняем оригинальный цвет если еще не сохранили
-        if (!tileOriginalColors.ContainsKey(tile))
-        {
-            tileOriginalColors[tile] = tileRenderer.material.color;
-        }
-        
-        tileRenderer.material.color = jumpTileHighlightColor;
-        lastHighlightedTile = tile;
-        Invoke(nameof(ResetLastTileColor), highlightDuration);
-    }
-}
 
  void OnTriggerEnter(Collider other)
 {
@@ -1527,27 +1509,36 @@ bool ShouldSnapToGrid()
         }
     }
 
-   void HighlightTile(GameObject tile, Color highlightColor)
-{
-    if (lastHighlightedTile != null && lastHighlightedTile != tile)
+    void HighlightTile(GameObject tile, Color highlightColor)
     {
-        ResetTileColor(lastHighlightedTile);
-    }
-
-    Renderer tileRenderer = tile.GetComponent<Renderer>();
-    if (tileRenderer != null)
-    {
-        // Сохраняем оригинальный цвет если еще не сохранили
-        if (!tileOriginalColors.ContainsKey(tile))
+        // 1. Если мы сменили тайл, сбрасываем старый немедленно
+        if (lastHighlightedTile != null && lastHighlightedTile != tile)
         {
-            tileOriginalColors[tile] = tileRenderer.material.color;
+            ResetTileColor(lastHighlightedTile);
+            CancelInvoke(nameof(ResetLastTileColor));
+        }
+
+        // 2. Если это новый тайл, устанавливаем его цвет и сохраняем оригинал
+        if (lastHighlightedTile != tile)
+        {
+            Renderer tileRenderer = tile.GetComponent<Renderer>();
+            if (tileRenderer != null)
+            {
+                if (!tileOriginalColors.ContainsKey(tile))
+                {
+                    tileOriginalColors[tile] = tileRenderer.material.color;
+                }
+                
+                tileRenderer.material.color = highlightColor;
+            }
+            lastHighlightedTile = tile;
         }
         
-        tileRenderer.material.color = highlightColor;
-        lastHighlightedTile = tile;
+        // 3. Обновляем таймер сброса, чтобы подсветка не исчезала пока мы на тайле
+        // и исчезала через highlightDuration после того как мы уехали
+        CancelInvoke(nameof(ResetLastTileColor));
         Invoke(nameof(ResetLastTileColor), highlightDuration);
     }
-}
 
     void ResetTileColor(GameObject tile)
 {
