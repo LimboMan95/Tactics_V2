@@ -25,6 +25,13 @@ public class FragileTile : MonoBehaviour
         originalColor = tileRenderer.material.color;
     }
 
+    private void EnsureComponents()
+    {
+        if (tileRenderer == null) tileRenderer = GetComponent<Renderer>();
+        if (tileCollider == null) tileCollider = GetComponent<Collider>();
+        if (tileRenderer != null && originalColor == default) originalColor = tileRenderer.material.color;
+    }
+
     void Update()
     {
         GridObjectMover editModeChecker = FindAnyObjectByType<GridObjectMover>();
@@ -103,12 +110,13 @@ public class FragileTile : MonoBehaviour
     // ЛОМАЕМ НАВСЕГДА (без восстановления)
     private void BreakTilePermanently()
     {
+        EnsureComponents();
         isBroken = true;
         isCubeOnTile = false;
         
         // Выключаем коллайдер и рендер
-        tileCollider.enabled = false;
-        tileRenderer.enabled = false;
+        if (tileCollider != null) tileCollider.enabled = false;
+        if (tileRenderer != null) tileRenderer.enabled = false;
         
         // Эффекты разрушения
         if (breakParticles != null) breakParticles.Play();
@@ -120,9 +128,10 @@ public class FragileTile : MonoBehaviour
     // ВОССТАНАВЛИВАЕМ ТОЛЬКО ПРИНУДИТЕЛЬНО (из куба)
     public void ForceRespawn()
     {
-        tileRenderer.enabled = true;
-        tileCollider.enabled = true;
-        tileRenderer.material.color = originalColor;
+        EnsureComponents();
+        if (tileRenderer != null) tileRenderer.enabled = true;
+        if (tileCollider != null) tileCollider.enabled = true;
+        if (tileRenderer != null) tileRenderer.material.color = originalColor;
         isBroken = false;
         isCubeOnTile = false;
         cube = null;

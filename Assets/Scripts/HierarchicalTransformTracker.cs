@@ -65,6 +65,7 @@ public class HierarchicalTransformTracker : MonoBehaviour
 
     void SaveTransform(Transform target)
     {
+        if (target == null) return;
         if (_savedTransforms.ContainsKey(target)) return;
 
         _savedTransforms[target] = new TransformSnapshot()
@@ -77,14 +78,33 @@ public class HierarchicalTransformTracker : MonoBehaviour
 
     void UpdateAllTransforms()
     {
+        if (_savedTransforms.Count == 0) return;
+
+        List<Transform> dead = null;
         foreach (var entry in _savedTransforms)
         {
+            if (entry.Key == null)
+            {
+                dead ??= new List<Transform>();
+                dead.Add(entry.Key);
+                continue;
+            }
+
             UpdateTransform(entry.Key, entry.Value);
+        }
+
+        if (dead != null)
+        {
+            foreach (var t in dead)
+            {
+                _savedTransforms.Remove(t);
+            }
         }
     }
 
     void UpdateTransform(Transform target, TransformSnapshot snapshot)
     {
+        if (target == null || snapshot == null) return;
         if (trackPosition) snapshot.position = target.position;
         if (trackRotation) snapshot.rotation = target.rotation;
         if (trackScale) snapshot.localScale = target.localScale;
