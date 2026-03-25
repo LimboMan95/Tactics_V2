@@ -9,6 +9,7 @@ public class Bomb : MonoBehaviour, IResettable
     public float collisionDelay = 0.2f;
     public int explosionSize = 3;  // Размер квадрата взрыва (3 = 3x3 клетки)
     public float tileSize = 1f;     // Размер клетки
+    public float explosionHeight = 2f; // Высота зоны поражения взрыва
     
     [Header("Эффекты")]
     public ParticleSystem explosionEffect;
@@ -188,8 +189,9 @@ public class Bomb : MonoBehaviour, IResettable
         GetComponent<Collider>().enabled = false;
         
         float boxSize = (explosionSize - 1) * tileSize;
-        Vector3 boxCenter = transform.position;
-        Vector3 halfExtents = new Vector3(boxSize * 0.5f, 1f, boxSize * 0.5f);
+        // Смещаем центр коробки вверх на половину высоты взрыва, чтобы она покрывала пространство над землей
+        Vector3 boxCenter = transform.position + Vector3.up * (explosionHeight * 0.5f);
+        Vector3 halfExtents = new Vector3(boxSize * 0.5f, explosionHeight * 0.5f, boxSize * 0.5f);
         
         // Проверяем игрока СНАЧАЛА, чтобы цепочка взрывов была логичной
         Collider[] players = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity, playerLayer);
@@ -253,7 +255,10 @@ public class Bomb : MonoBehaviour, IResettable
     void OnDrawGizmosSelected()
     {
         float boxSize = (explosionSize - 1) * tileSize;
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireCube(transform.position, new Vector3(boxSize, 0.1f, boxSize));
+        Vector3 boxCenter = transform.position + Vector3.up * (explosionHeight * 0.5f);
+        Vector3 size = new Vector3(boxSize, explosionHeight, boxSize);
+        
+        Gizmos.color = new Color(1, 0, 0, 0.5f);
+        Gizmos.DrawWireCube(boxCenter, size);
     }
 }
