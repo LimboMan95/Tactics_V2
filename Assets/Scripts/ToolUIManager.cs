@@ -23,6 +23,9 @@ public class ToolUIManager : MonoBehaviour
     
    public void ShowBubbleForTool(GameObject tool, bool isRotatable)
 {
+    // Если инструмент нельзя вращать, вообще не создаем бабл
+    if (!isRotatable) return;
+    
     if (activeBubbles.ContainsKey(tool)) return;
     
     GameObject bubble = Instantiate(bubblePrefab, bubbleCanvas.transform);
