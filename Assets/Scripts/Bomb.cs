@@ -7,7 +7,7 @@ public class Bomb : MonoBehaviour, IResettable
     public Color bombColor = Color.magenta;
     public float explosionDelay = 0.8f;
     public float collisionDelay = 0.2f;
-    public int explosionSize = 3;  // Размер квадрата взрыва (3 = 3x3 клетки)
+    public int explosionSize = 4;  // Размер квадрата взрыва (4 = 4x4 клетки)
     public float tileSize = 1f;     // Размер клетки
     public float explosionHeight = 2f; // Высота зоны поражения взрыва
     

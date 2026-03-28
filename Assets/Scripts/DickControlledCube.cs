@@ -966,7 +966,7 @@ void OnTriggerStay(Collider other)
             Debug.Log($"   ✅ ПОВОРОТ ВЫПОЛНЯЕТСЯ! Угол={angle}");
             currentDirection = tileDirection;
             mainPointer.forward = tileDirection;
-            visualPointer.forward = tileDirection;
+            UpdateVisualPointers();
             StartCoroutine(RotateToDirection(tileDirection));
         }
         else if (!isRotating && centerReached && angle <= 5f)
@@ -1164,6 +1164,15 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
     public void ToggleMovement()
     {
         movementEnabled = !movementEnabled;
+        
+        if (movementEnabled)
+        {
+            if (TryGetComponent<Rigidbody>(out var rb))
+            {
+                if (rb.isKinematic) rb.isKinematic = false;
+                rb.WakeUp();
+            }
+        }
         Debug.Log($"Movement {(movementEnabled ? "ENABLED" : "DISABLED")}");
     }
 
@@ -1191,8 +1200,8 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
         if (!RB.isKinematic)
         {
             RB.linearVelocity = Vector3.zero;
+            RB.angularVelocity = Vector3.zero;
         }
-        RB.angularVelocity = Vector3.zero;
     }
 }
 public void ResetPhysics()
@@ -1202,8 +1211,8 @@ public void ResetPhysics()
         if (!RB.isKinematic)
         {
             RB.linearVelocity = Vector3.zero;
+            RB.angularVelocity = Vector3.zero;
         }
-        RB.angularVelocity = Vector3.zero;
         RB.freezeRotation = true;
     }
     isGrounded = CheckGround();
@@ -1211,11 +1220,11 @@ public void ResetPhysics()
 
    public void UpdateDirection(Vector3 newDirection)
 {
-    currentDirection = newDirection;
-    if(mainPointer != null) mainPointer.forward = newDirection;
-    if(visualPointer != null) visualPointer.forward = newDirection;
+    currentDirection = newDirection.sqrMagnitude > 1e-6f ? newDirection.normalized : Vector3.forward;
+    if (mainPointer != null) mainPointer.forward = currentDirection;
+    UpdateVisualPointers();
     
-    Debug.Log($"Direction updated to: {newDirection}");
+    Debug.Log($"Direction updated to: {currentDirection}");
 }
 public void Revive()
 {
@@ -1322,9 +1331,9 @@ private IEnumerator DelayedGroundCheck() {
 }
 public void ForceUpdateDirection(Vector3 newDirection)
 {
-    currentDirection = newDirection.normalized;
-    mainPointer.forward = currentDirection; // Жёстко синхронизируем
-    visualPointer.forward = currentDirection;
+    currentDirection = newDirection.sqrMagnitude > 1e-6f ? newDirection.normalized : Vector3.forward;
+    if (mainPointer != null) mainPointer.forward = currentDirection;
+    UpdateVisualPointers();
     
     Debug.Log($"Direction updated: {currentDirection}");
 }
@@ -1354,12 +1363,19 @@ public void ForceUpdateDirection(Vector3 newDirection)
             levelCompleteUI.SetActive(false);
             
         transform.position = InitialPosition;
-        transform.rotation = initialRotation;
-        RB.linearVelocity = Vector3.zero;
-        RB.angularVelocity = Vector3.zero;
+        Vector3 resetDir = InitialDirection.sqrMagnitude > 1e-6f ? InitialDirection.normalized : Vector3.forward;
+        Quaternion resetRot = Quaternion.LookRotation(resetDir);
+        transform.rotation = resetRot;
+        initialRotation = resetRot;
+        if (!RB.isKinematic)
+        {
+            RB.linearVelocity = Vector3.zero;
+            RB.angularVelocity = Vector3.zero;
+        }
         RB.linearDamping = rigidbodyLinearDamping;
         RB.angularDamping = rigidbodyAngularDamping;
-        currentDirection = mainPointer.forward;
+        currentDirection = resetDir;
+        if (mainPointer != null) mainPointer.rotation = resetRot;
         isRotating = false;
         isGrounded = true;
         RB.freezeRotation = true;
@@ -1380,6 +1396,11 @@ public void ForceUpdateDirection(Vector3 newDirection)
    void HandleMovement()
 {
     if (isJumping) return;
+    if (RB != null && RB.isKinematic)
+    {
+        RB.isKinematic = false;
+        RB.WakeUp();
+    }
 
     Vector3 moveDir = currentDirection.sqrMagnitude > 1e-6f ? currentDirection.normalized : Vector3.forward;
 

@@ -1805,12 +1805,6 @@ MonoBehaviour:
     prefab: {fileID: 6542538175533667843, guid: fd097ec90ff86d148ac6cd9274b8f6b6, type: 3}
     usesRotation: 0
     includeInBounds: 1
-  - id: 5
-    type: 0
-    key: Detonator
-    prefab: {fileID: 6542538175533667843, guid: fd097ec90ff86d148ac6cd9274b8f6b6, type: 3}
-    usesRotation: 0
-    includeInBounds: 1
   - id: 6
     type: 9
     key: flag
@@ -1844,6 +1838,10 @@ MonoBehaviour:
   levelRoot: {fileID: 313545531}
   tileSize: 1
   baseFloorPrefabId: 1
+  bombExplosionEffects:
+  - id: 12
+    key: Boom
+    prefab: {fileID: 679334823549118133, guid: 20a51797337207c4cab0ef9641a7b70c, type: 3}
   directionTileTag: Vector
   jumpTileTag: Jumper
   speedTileTag: Speed

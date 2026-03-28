@@ -124,13 +124,10 @@ rb.WakeUp(); // Будим Rigidbody
     }
 
     // 5. Восстановление указателей
-    mainPointer.localPosition = savedTransforms.pointer1Position;
-    mainPointer.localRotation = savedTransforms.pointer1Rotation;
-    visualPointer.localPosition = savedTransforms.pointer2Position;
-    visualPointer.localRotation = savedTransforms.pointer2Rotation;
+    // Указатели синхронизируются от текущего направления куба
 
     // 6. Обновление направления
-    cubeController.ForceUpdateDirection(savedTransforms.movementDirection);
+    cubeController.ForceUpdateDirection(cubeController.InitialDirection);
 
     // 7. Включение обратно
     rb.isKinematic = false;

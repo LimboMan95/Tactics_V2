@@ -144,7 +144,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   detonatorColor: {r: 0.6627451, g: 0.4745098, b: 0.12156863, a: 1}
-  pressDepth: 0.2
+  pressDepth: 0.1
   centerThreshold: 0.3
   onPressed:
     m_PersistentCalls:

@@ -78,8 +78,10 @@ public class GamePhaseManager : MonoBehaviour
         // Сбрасываем в kinematic режим
         cubeController.enabled = false;
         cubeController.ResetToInitialState(); // Явно указываем kinematic
-        
-        // Больше не нужно управлять Rigidbody здесь
+            var rb = cubeController.GetComponent<Rigidbody>();
+            if (rb != null) rb.isKinematic = true;
+            
+            // Больше не нужно управлять Rigidbody здесь
     }
     
     // Включаем перетаскивание
@@ -106,6 +108,8 @@ void StartExecutionPhase()
     {
         // Сбрасываем в динамический режим
         cubeController.ResetToInitialState(); // Не kinematic
+            var rb = cubeController.GetComponent<Rigidbody>();
+            if (rb != null) rb.isKinematic = false;
         cubeController.movementEnabled = true; // ← ВКЛЮЧАЕМ ДВИЖЕНИЕ!
         cubeController.enabled = true;
     }

@@ -67,7 +67,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 4456971326d7fe4448981690625f8612, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -145,8 +145,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   bombColor: {r: 0, g: 0, b: 0, a: 1}
   explosionDelay: 0.8
-  explosionRadius: 1.5
-  explosionEffect: {fileID: 0}
+  collisionDelay: 0.2
+  explosionSize: 4
+  tileSize: 1
+  explosionHeight: 2
+  explosionEffect: {fileID: 679334823549118133, guid: 20a51797337207c4cab0ef9641a7b70c, type: 3}
   explosionSound: {fileID: 0}
   destructibleLayer:
     serializedVersion: 2
@@ -154,3 +157,4 @@ MonoBehaviour:
   playerLayer:
     serializedVersion: 2
     m_Bits: 1
+  isActivated: 0

@@ -108,6 +108,13 @@ public static class LevelCodeBatchExporter
                 var exporter = tempGO.AddComponent<LevelCodeManager>();
                 CopyConfig(srcConfig, exporter);
                 exporter.levelRoot = levelRoot;
+                
+                // Пытаемся подстроить tileSize под сцену (если у куба иной tileSize)
+                var sceneCube = Object.FindFirstObjectByType<DickControlledCube>();
+                if (sceneCube != null && sceneCube.tileSize > 1e-4f)
+                {
+                    exporter.tileSize = sceneCube.tileSize;
+                }
 
                 string code = exporter.ExportLevelCode();
                 Object.DestroyImmediate(tempGO);
@@ -146,6 +153,19 @@ public static class LevelCodeBatchExporter
         dst.fragileTileTag = src.fragileTileTag;
         dst.finishTag = src.finishTag;
 
+        dst.bombExplosionEffects = new List<LevelCodeManager.ExplosionEffectEntry>(src.bombExplosionEffects.Count);
+        foreach (var e in src.bombExplosionEffects)
+        {
+            if (e == null) continue;
+            var ne = new LevelCodeManager.ExplosionEffectEntry
+            {
+                id = e.id,
+                key = e.key,
+                prefab = e.prefab
+            };
+            dst.bombExplosionEffects.Add(ne);
+        }
+
         dst.prefabs = new List<LevelCodeManager.PrefabEntry>(src.prefabs.Count);
         foreach (var e in src.prefabs)
         {
@@ -163,4 +183,3 @@ public static class LevelCodeBatchExporter
         }
     }
 }
-

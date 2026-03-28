@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -36,11 +37,22 @@ public class LevelCodeManager : MonoBehaviour
         public bool includeInBounds = true;
     }
 
+    [Serializable]
+    public class ExplosionEffectEntry
+    {
+        public ushort id;
+        public string key;
+        public ParticleSystem prefab;
+    }
+
     [Header("Registry")]
     public List<PrefabEntry> prefabs = new List<PrefabEntry>();
     public Transform levelRoot;
     public float tileSize = 1f;
     public ushort baseFloorPrefabId;
+
+    [Header("Bomb Explosion Effects")]
+    public List<ExplosionEffectEntry> bombExplosionEffects = new List<ExplosionEffectEntry>();
 
     [Header("Detection")]
     public string directionTileTag = "Vector";
@@ -53,11 +65,20 @@ public class LevelCodeManager : MonoBehaviour
     public TMP_InputField codeInput;
 
     private const string Magic = "TV2";
-    private const byte LatestVersion = 4;
+    private const byte LatestVersion = 7;
 
     private void OnValidate()
     {
         foreach (var e in prefabs)
+        {
+            if (e == null) continue;
+            if (string.IsNullOrWhiteSpace(e.key) && e.prefab != null)
+            {
+                e.key = e.prefab.name;
+            }
+        }
+
+        foreach (var e in bombExplosionEffects)
         {
             if (e == null) continue;
             if (string.IsNullOrWhiteSpace(e.key) && e.prefab != null)
@@ -110,7 +131,8 @@ public class LevelCodeManager : MonoBehaviour
                 floorBitmap = Array.Empty<byte>(),
                 floorOverrides = new List<FloorOverrideRecord>(),
                 player = cube != null ? CapturePlayer(cube) : default,
-                objects = new List<LevelObjectRecord>()
+                objects = new List<LevelObjectRecord>(),
+                bombLinks = new List<BombDetonatorLinkRecord>()
             }));
         }
 
@@ -127,13 +149,19 @@ public class LevelCodeManager : MonoBehaviour
             int gx = WorldToGrid(inst.position.x);
             int gz = WorldToGrid(inst.position.z);
 
+            bool hasColor = TryGetExportColor(inst.source, out Color32 color);
+            bool hasExplosionEffect = TryGetExportBombExplosionEffect(inst.source, out ushort explosionEffectId);
             records.Add(new LevelObjectRecord
             {
                 prefabId = inst.prefabId,
                 x = (ushort)(gx - minX),
                 z = (ushort)(gz - minZ),
                 yCm = (short)Mathf.RoundToInt(inst.position.y * 100f),
-                rot = inst.usesRotation ? (byte)RotationToIndex(inst.rotation) : (byte)0
+                rot = inst.usesRotation ? (byte)RotationToIndex(inst.rotation) : (byte)0,
+                hasColor = hasColor,
+                color = color,
+                hasExplosionEffect = hasExplosionEffect,
+                explosionEffectId = explosionEffectId
             });
         }
 
@@ -150,7 +178,8 @@ public class LevelCodeManager : MonoBehaviour
             floorBitmap = floorBitmap,
             floorOverrides = floorOverrides,
             player = cube != null ? CapturePlayer(cube) : default,
-            objects = records
+            objects = records,
+            bombLinks = CollectBombLinks(minX, minZ, width)
         };
 
         return EncodeBytes(BuildPayload(payload));
@@ -235,13 +264,29 @@ public class LevelCodeManager : MonoBehaviour
 
             GameObject obj = Instantiate(entry.prefab, pos, rot, levelRoot);
             obj.name = entry.prefab.name;
+            if (rec.hasColor)
+            {
+                ApplyImportedColor(obj, rec.color);
+            }
+            if (rec.hasExplosionEffect)
+            {
+                ApplyImportedBombExplosionEffect(obj, rec.explosionEffectId);
+            }
         }
+
+        ApplyBombLinks(payload);
 
         var cube = FindAnyObjectByType<DickControlledCube>();
         if (cube != null)
         {
-            ApplyPlayer(cube, payload.player);
+            StartCoroutine(ApplyPlayerAfterFrame(cube, payload.player));
         }
+    }
+
+    private IEnumerator ApplyPlayerAfterFrame(DickControlledCube cube, PlayerRecord player)
+    {
+        yield return null;
+        ApplyPlayer(cube, player);
     }
 
     private void ClearGenerated()
@@ -264,7 +309,30 @@ public class LevelCodeManager : MonoBehaviour
         if (c != 0) return c;
         c = a.rot.CompareTo(b.rot);
         if (c != 0) return c;
-        return a.yCm.CompareTo(b.yCm);
+        c = a.yCm.CompareTo(b.yCm);
+        if (c != 0) return c;
+        c = a.hasColor.CompareTo(b.hasColor);
+        if (c != 0) return c;
+        if (a.hasColor)
+        {
+            c = a.color.r.CompareTo(b.color.r);
+            if (c != 0) return c;
+            c = a.color.g.CompareTo(b.color.g);
+            if (c != 0) return c;
+            c = a.color.b.CompareTo(b.color.b);
+            if (c != 0) return c;
+            c = a.color.a.CompareTo(b.color.a);
+            if (c != 0) return c;
+        }
+
+        c = a.hasExplosionEffect.CompareTo(b.hasExplosionEffect);
+        if (c != 0) return c;
+        if (a.hasExplosionEffect)
+        {
+            return a.explosionEffectId.CompareTo(b.explosionEffectId);
+        }
+
+        return 0;
     }
 
     private List<InstanceInfo> CollectInstances()
@@ -291,6 +359,7 @@ public class LevelCodeManager : MonoBehaviour
             results.Add(new InstanceInfo
             {
                 prefabId = entry.id,
+                source = t.gameObject,
                 position = t.position,
                 rotation = t.rotation,
                 usesRotation = entry.usesRotation,
@@ -320,6 +389,20 @@ public class LevelCodeManager : MonoBehaviour
             return true;
         }
 
+        // Если объект был переименован в сцене, ключ может не совпасть. Для некоторых типов
+        // пытаемся сопоставить по компоненту (Bomb/Detonator/Crate/FragileTile), независимо от type.
+        if (go.TryGetComponent<Detonator>(out _))
+        {
+            var detCandidates = prefabs
+                .Where(p => p != null && p.id != 0 && p.prefab != null && p.prefab.GetComponentInChildren<Detonator>(true) != null)
+                .ToList();
+            if (detCandidates.Count == 1)
+            {
+                entry = detCandidates[0];
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -335,6 +418,7 @@ public class LevelCodeManager : MonoBehaviour
         if (go == null) return LevelObjectType.Unknown;
 
         if (go.TryGetComponent<Bomb>(out _)) return LevelObjectType.Bomb;
+        if (go.TryGetComponent<Detonator>(out _)) return LevelObjectType.Decor;
         if (go.TryGetComponent<Crate>(out _)) return LevelObjectType.Crate;
         if (go.TryGetComponent<FragileTile>(out _)) return LevelObjectType.FragileTile;
 
@@ -345,6 +429,193 @@ public class LevelCodeManager : MonoBehaviour
         if (!string.IsNullOrEmpty(finishTag) && go.CompareTag(finishTag)) return LevelObjectType.Finish;
 
         return LevelObjectType.Unknown;
+    }
+
+    private static bool TryGetExportColor(GameObject go, out Color32 color)
+    {
+        color = default;
+        if (go == null) return false;
+
+        bool wantsColor = go.GetComponent<Bomb>() != null || go.GetComponent<Detonator>() != null;
+        if (!wantsColor) return false;
+
+        var renderer = go.GetComponent<Renderer>();
+        if (renderer == null) return false;
+
+        Color c = renderer.sharedMaterial != null ? renderer.sharedMaterial.color : renderer.material.color;
+        color = (Color32)c;
+        return true;
+    }
+
+    private bool TryGetExportBombExplosionEffect(GameObject go, out ushort explosionEffectId)
+    {
+        explosionEffectId = 0;
+        if (go == null) return false;
+
+        var bomb = go.GetComponent<Bomb>();
+        if (bomb == null) return false;
+
+        var fx = bomb.explosionEffect;
+        if (fx == null) return false;
+
+        var entry = bombExplosionEffects.FirstOrDefault(e => e != null && e.id != 0 && e.prefab == fx);
+        if (entry != null)
+        {
+            explosionEffectId = entry.id;
+            return true;
+        }
+
+        string key = NormalizeName(fx.name);
+        entry = bombExplosionEffects.FirstOrDefault(e => e != null && e.id != 0 && e.prefab != null && NormalizeName(e.key) == key);
+        if (entry != null)
+        {
+            explosionEffectId = entry.id;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void ApplyImportedColor(GameObject go, Color32 color)
+    {
+        if (go == null) return;
+
+        var renderer = go.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            renderer.material.color = color;
+        }
+
+        var bomb = go.GetComponent<Bomb>();
+        if (bomb != null)
+        {
+            bomb.bombColor = color;
+        }
+
+        var det = go.GetComponent<Detonator>();
+        if (det != null)
+        {
+            det.detonatorColor = color;
+        }
+    }
+
+    private void ApplyImportedBombExplosionEffect(GameObject go, ushort explosionEffectId)
+    {
+        if (go == null) return;
+        if (explosionEffectId == 0) return;
+
+        var bomb = go.GetComponent<Bomb>();
+        if (bomb == null) return;
+
+        var entry = bombExplosionEffects.FirstOrDefault(e => e != null && e.id == explosionEffectId);
+        if (entry == null || entry.prefab == null) return;
+
+        bomb.explosionEffect = entry.prefab;
+    }
+
+    private List<BombDetonatorLinkRecord> CollectBombLinks(int minX, int minZ, int width)
+    {
+        IEnumerable<BombDetonatorPair> pairs;
+        if (levelRoot != null)
+        {
+            pairs = levelRoot.GetComponentsInChildren<BombDetonatorPair>(true);
+        }
+        else
+        {
+            pairs = FindObjectsByType<BombDetonatorPair>(FindObjectsSortMode.None);
+        }
+
+        var list = new List<BombDetonatorLinkRecord>();
+        foreach (var p in pairs)
+        {
+            if (p == null) continue;
+            if (p.links == null || p.links.Count == 0) continue;
+
+            for (int i = 0; i < p.links.Count; i++)
+            {
+                var link = p.links[i];
+                if (link == null || link.bomb == null || link.detonator == null) continue;
+
+                int bgx = WorldToGrid(link.bomb.transform.position.x);
+                int bgz = WorldToGrid(link.bomb.transform.position.z);
+                int dgx = WorldToGrid(link.detonator.transform.position.x);
+                int dgz = WorldToGrid(link.detonator.transform.position.z);
+
+                int brx = bgx - minX;
+                int brz = bgz - minZ;
+                int drx = dgx - minX;
+                int drz = dgz - minZ;
+
+                if (brx < 0 || brz < 0 || drx < 0 || drz < 0) continue;
+                if (brx >= width || drx >= width) continue;
+
+                ushort bombCellIndex = (ushort)((brz * width) + brx);
+                ushort detCellIndex = (ushort)((drz * width) + drx);
+
+                list.Add(new BombDetonatorLinkRecord
+                {
+                    detonatorCellIndex = detCellIndex,
+                    bombCellIndex = bombCellIndex
+                });
+            }
+        }
+
+        list.Sort((a, b) =>
+        {
+            int c = a.detonatorCellIndex.CompareTo(b.detonatorCellIndex);
+            if (c != 0) return c;
+            return a.bombCellIndex.CompareTo(b.bombCellIndex);
+        });
+
+        return list;
+    }
+
+    private void ApplyBombLinks(LevelPayload payload)
+    {
+        if (payload.bombLinks == null || payload.bombLinks.Count == 0) return;
+        if (levelRoot == null) return;
+
+        var bombs = levelRoot.GetComponentsInChildren<Bomb>(true);
+        var dets = levelRoot.GetComponentsInChildren<Detonator>(true);
+
+        var bombsByCell = new Dictionary<ushort, Bomb>(bombs.Length);
+        foreach (var bomb in bombs)
+        {
+            int gx = WorldToGrid(bomb.transform.position.x);
+            int gz = WorldToGrid(bomb.transform.position.z);
+            int rx = gx - payload.originX;
+            int rz = gz - payload.originZ;
+            if (rx < 0 || rz < 0 || rx >= payload.width || rz >= payload.height) continue;
+            ushort cellIndex = (ushort)((rz * payload.width) + rx);
+            if (!bombsByCell.ContainsKey(cellIndex)) bombsByCell[cellIndex] = bomb;
+        }
+
+        var detsByCell = new Dictionary<ushort, Detonator>(dets.Length);
+        foreach (var det in dets)
+        {
+            int gx = WorldToGrid(det.transform.position.x);
+            int gz = WorldToGrid(det.transform.position.z);
+            int rx = gx - payload.originX;
+            int rz = gz - payload.originZ;
+            if (rx < 0 || rz < 0 || rx >= payload.width || rz >= payload.height) continue;
+            ushort cellIndex = (ushort)((rz * payload.width) + rx);
+            if (!detsByCell.ContainsKey(cellIndex)) detsByCell[cellIndex] = det;
+        }
+
+        foreach (var link in payload.bombLinks)
+        {
+            if (!detsByCell.TryGetValue(link.detonatorCellIndex, out var det)) continue;
+            if (!bombsByCell.TryGetValue(link.bombCellIndex, out var bomb)) continue;
+
+            det.onPressed.AddListener(bomb.Activate);
+
+            bomb.bombColor = det.detonatorColor;
+            var rend = bomb.GetComponent<Renderer>();
+            if (rend != null)
+            {
+                rend.material.color = det.detonatorColor;
+            }
+        }
     }
 
     private void ComputeBounds(GroundInfo ground, List<InstanceInfo> instances, out int minX, out int minZ, out int maxX, out int maxZ)
@@ -418,12 +689,30 @@ public class LevelCodeManager : MonoBehaviour
 
     private static byte[] BuildPayload(LevelPayload payload)
     {
-        if (CanUseV4(payload))
-        {
-            return BuildPayloadV4(payload);
-        }
-
+        if (CanUseV7(payload)) return BuildPayloadV7(payload);
+        if (CanUseV6(payload)) return BuildPayloadV6(payload);
+        if (CanUseV5(payload)) return BuildPayloadV5(payload);
+        if (CanUseV4(payload)) return BuildPayloadV4(payload);
         return BuildPayloadV3(payload);
+    }
+
+    private static bool CanUseV7(LevelPayload payload)
+    {
+        if (!CanUseV6(payload)) return false;
+        if (payload.bombLinks == null) return false;
+        if (payload.bombLinks.Count > ushort.MaxValue) return false;
+        return true;
+    }
+
+    private static bool CanUseV6(LevelPayload payload)
+    {
+        return CanUseV5(payload);
+    }
+
+    private static bool CanUseV5(LevelPayload payload)
+    {
+        if (!CanUseV4(payload)) return false;
+        return true;
     }
 
     private static bool CanUseV4(LevelPayload payload)
@@ -525,7 +814,7 @@ public class LevelCodeManager : MonoBehaviour
         bw.Write((byte)Magic[0]);
         bw.Write((byte)Magic[1]);
         bw.Write((byte)Magic[2]);
-        bw.Write(LatestVersion);
+        bw.Write((byte)4);
 
         bw.Write(payload.originX);
         bw.Write(payload.originZ);
@@ -599,6 +888,323 @@ public class LevelCodeManager : MonoBehaviour
         return list;
     }
 
+    private static byte[] BuildPayloadV5(LevelPayload payload)
+    {
+        int width = payload.width;
+        int height = payload.height;
+        int cellCount = width * height;
+
+        var palette = BuildObjectPalette(payload.objects);
+        var paletteIndexByPrefabId = palette
+            .Select((pid, i) => new { pid, i })
+            .ToDictionary(x => x.pid, x => (byte)x.i);
+
+        ushort commonOverridePrefabId = 0;
+        if (payload.floorOverrides.Count > 0)
+        {
+            commonOverridePrefabId = payload.floorOverrides[0].prefabId;
+            for (int i = 1; i < payload.floorOverrides.Count; i++)
+            {
+                if (payload.floorOverrides[i].prefabId != commonOverridePrefabId)
+                {
+                    commonOverridePrefabId = 0;
+                    break;
+                }
+            }
+        }
+
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms);
+
+        bw.Write((byte)Magic[0]);
+        bw.Write((byte)Magic[1]);
+        bw.Write((byte)Magic[2]);
+        bw.Write((byte)5);
+
+        bw.Write(payload.originX);
+        bw.Write(payload.originZ);
+        bw.Write(payload.width);
+        bw.Write(payload.height);
+
+        bw.Write(payload.baseFloorPrefabId);
+        bw.Write(payload.groundYcm);
+
+        bw.Write((ushort)payload.floorBitmap.Length);
+        bw.Write(payload.floorBitmap);
+
+        bw.Write(commonOverridePrefabId);
+        bw.Write((ushort)payload.floorOverrides.Count);
+        for (int i = 0; i < payload.floorOverrides.Count; i++)
+        {
+            var o = payload.floorOverrides[i];
+            ushort cellIndex = (ushort)((o.z * width) + o.x);
+            if (commonOverridePrefabId == 0)
+            {
+                bw.Write(o.prefabId);
+            }
+            bw.Write(cellIndex);
+        }
+
+        bw.Write(payload.player.x);
+        bw.Write(payload.player.z);
+        bw.Write(payload.player.yCm);
+        bw.Write(payload.player.rot);
+
+        bw.Write((byte)palette.Count);
+        for (int i = 0; i < palette.Count; i++)
+        {
+            bw.Write(palette[i]);
+        }
+
+        bw.Write((ushort)payload.objects.Count);
+        for (int i = 0; i < payload.objects.Count; i++)
+        {
+            var o = payload.objects[i];
+            ushort cellIndex = (ushort)((o.z * width) + o.x);
+            byte palIdx = paletteIndexByPrefabId[o.prefabId];
+
+            short yDelta = (short)(o.yCm - payload.groundYcm);
+            bool hasY = yDelta != 0;
+            bool hasColor = o.hasColor;
+            byte meta = (byte)((o.rot & 3) | (hasY ? 4 : 0) | (hasColor ? 8 : 0));
+
+            bw.Write(cellIndex);
+            bw.Write(palIdx);
+            bw.Write(meta);
+            if (hasY)
+            {
+                bw.Write(yDelta);
+            }
+            if (hasColor)
+            {
+                bw.Write(o.color.r);
+                bw.Write(o.color.g);
+                bw.Write(o.color.b);
+                bw.Write(o.color.a);
+            }
+        }
+
+        bw.Flush();
+        return ms.ToArray();
+    }
+
+    private static byte[] BuildPayloadV6(LevelPayload payload)
+    {
+        int width = payload.width;
+        int height = payload.height;
+        int cellCount = width * height;
+
+        var palette = BuildObjectPalette(payload.objects);
+        var paletteIndexByPrefabId = palette
+            .Select((pid, i) => new { pid, i })
+            .ToDictionary(x => x.pid, x => (byte)x.i);
+
+        ushort commonOverridePrefabId = 0;
+        if (payload.floorOverrides.Count > 0)
+        {
+            commonOverridePrefabId = payload.floorOverrides[0].prefabId;
+            for (int i = 1; i < payload.floorOverrides.Count; i++)
+            {
+                if (payload.floorOverrides[i].prefabId != commonOverridePrefabId)
+                {
+                    commonOverridePrefabId = 0;
+                    break;
+                }
+            }
+        }
+
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms);
+
+        bw.Write((byte)Magic[0]);
+        bw.Write((byte)Magic[1]);
+        bw.Write((byte)Magic[2]);
+        bw.Write((byte)6);
+
+        bw.Write(payload.originX);
+        bw.Write(payload.originZ);
+        bw.Write(payload.width);
+        bw.Write(payload.height);
+
+        bw.Write(payload.baseFloorPrefabId);
+        bw.Write(payload.groundYcm);
+
+        bw.Write((ushort)payload.floorBitmap.Length);
+        bw.Write(payload.floorBitmap);
+
+        bw.Write(commonOverridePrefabId);
+        bw.Write((ushort)payload.floorOverrides.Count);
+        for (int i = 0; i < payload.floorOverrides.Count; i++)
+        {
+            var o = payload.floorOverrides[i];
+            ushort cellIndex = (ushort)((o.z * width) + o.x);
+            if (commonOverridePrefabId == 0)
+            {
+                bw.Write(o.prefabId);
+            }
+            bw.Write(cellIndex);
+        }
+
+        bw.Write(payload.player.x);
+        bw.Write(payload.player.z);
+        bw.Write(payload.player.yCm);
+        bw.Write(payload.player.rot);
+
+        bw.Write((byte)palette.Count);
+        for (int i = 0; i < palette.Count; i++)
+        {
+            bw.Write(palette[i]);
+        }
+
+        bw.Write((ushort)payload.objects.Count);
+        for (int i = 0; i < payload.objects.Count; i++)
+        {
+            var o = payload.objects[i];
+            ushort cellIndex = (ushort)((o.z * width) + o.x);
+            byte palIdx = paletteIndexByPrefabId[o.prefabId];
+
+            short yDelta = (short)(o.yCm - payload.groundYcm);
+            bool hasY = yDelta != 0;
+            bool hasColor = o.hasColor;
+            bool hasExplosionEffect = o.hasExplosionEffect;
+            byte meta = (byte)((o.rot & 3) | (hasY ? 4 : 0) | (hasColor ? 8 : 0) | (hasExplosionEffect ? 16 : 0));
+
+            bw.Write(cellIndex);
+            bw.Write(palIdx);
+            bw.Write(meta);
+            if (hasY)
+            {
+                bw.Write(yDelta);
+            }
+            if (hasColor)
+            {
+                bw.Write(o.color.r);
+                bw.Write(o.color.g);
+                bw.Write(o.color.b);
+                bw.Write(o.color.a);
+            }
+            if (hasExplosionEffect)
+            {
+                bw.Write(o.explosionEffectId);
+            }
+        }
+
+        bw.Flush();
+        return ms.ToArray();
+    }
+
+    private static byte[] BuildPayloadV7(LevelPayload payload)
+    {
+        int width = payload.width;
+        int height = payload.height;
+        int cellCount = width * height;
+
+        var palette = BuildObjectPalette(payload.objects);
+        var paletteIndexByPrefabId = palette
+            .Select((pid, i) => new { pid, i })
+            .ToDictionary(x => x.pid, x => (byte)x.i);
+
+        ushort commonOverridePrefabId = 0;
+        if (payload.floorOverrides.Count > 0)
+        {
+            commonOverridePrefabId = payload.floorOverrides[0].prefabId;
+            for (int i = 1; i < payload.floorOverrides.Count; i++)
+            {
+                if (payload.floorOverrides[i].prefabId != commonOverridePrefabId)
+                {
+                    commonOverridePrefabId = 0;
+                    break;
+                }
+            }
+        }
+
+        using var ms = new MemoryStream();
+        using var bw = new BinaryWriter(ms);
+
+        bw.Write((byte)Magic[0]);
+        bw.Write((byte)Magic[1]);
+        bw.Write((byte)Magic[2]);
+        bw.Write(LatestVersion);
+
+        bw.Write(payload.originX);
+        bw.Write(payload.originZ);
+        bw.Write(payload.width);
+        bw.Write(payload.height);
+
+        bw.Write(payload.baseFloorPrefabId);
+        bw.Write(payload.groundYcm);
+
+        bw.Write((ushort)payload.floorBitmap.Length);
+        bw.Write(payload.floorBitmap);
+
+        bw.Write(commonOverridePrefabId);
+        bw.Write((ushort)payload.floorOverrides.Count);
+        for (int i = 0; i < payload.floorOverrides.Count; i++)
+        {
+            var o = payload.floorOverrides[i];
+            ushort cellIndex = (ushort)((o.z * width) + o.x);
+            if (commonOverridePrefabId == 0)
+            {
+                bw.Write(o.prefabId);
+            }
+            bw.Write(cellIndex);
+        }
+
+        bw.Write(payload.player.x);
+        bw.Write(payload.player.z);
+        bw.Write(payload.player.yCm);
+        bw.Write(payload.player.rot);
+
+        bw.Write((byte)palette.Count);
+        for (int i = 0; i < palette.Count; i++)
+        {
+            bw.Write(palette[i]);
+        }
+
+        bw.Write((ushort)payload.objects.Count);
+        for (int i = 0; i < payload.objects.Count; i++)
+        {
+            var o = payload.objects[i];
+            ushort cellIndex = (ushort)((o.z * width) + o.x);
+            byte palIdx = paletteIndexByPrefabId[o.prefabId];
+
+            short yDelta = (short)(o.yCm - payload.groundYcm);
+            bool hasY = yDelta != 0;
+            bool hasColor = o.hasColor;
+            bool hasExplosionEffect = o.hasExplosionEffect;
+            byte meta = (byte)((o.rot & 3) | (hasY ? 4 : 0) | (hasColor ? 8 : 0) | (hasExplosionEffect ? 16 : 0));
+
+            bw.Write(cellIndex);
+            bw.Write(palIdx);
+            bw.Write(meta);
+            if (hasY)
+            {
+                bw.Write(yDelta);
+            }
+            if (hasColor)
+            {
+                bw.Write(o.color.r);
+                bw.Write(o.color.g);
+                bw.Write(o.color.b);
+                bw.Write(o.color.a);
+            }
+            if (hasExplosionEffect)
+            {
+                bw.Write(o.explosionEffectId);
+            }
+        }
+
+        bw.Write((ushort)payload.bombLinks.Count);
+        for (int i = 0; i < payload.bombLinks.Count; i++)
+        {
+            bw.Write(payload.bombLinks[i].detonatorCellIndex);
+            bw.Write(payload.bombLinks[i].bombCellIndex);
+        }
+
+        bw.Flush();
+        return ms.ToArray();
+    }
+
     private static LevelPayload ParsePayload(byte[] bytes)
     {
         using var ms = new MemoryStream(bytes);
@@ -611,7 +1217,7 @@ public class LevelCodeManager : MonoBehaviour
 
         if (m0 != (byte)Magic[0] || m1 != (byte)Magic[1] || m2 != (byte)Magic[2])
             throw new InvalidDataException("Bad magic");
-        if (ver != 2 && ver != 3 && ver != 4)
+        if (ver != 2 && ver != 3 && ver != 4 && ver != 5 && ver != 6 && ver != 7)
             throw new InvalidDataException($"Unsupported version {ver}");
 
         var payload = new LevelPayload();
@@ -619,6 +1225,266 @@ public class LevelCodeManager : MonoBehaviour
         payload.originZ = br.ReadInt16();
         payload.width = br.ReadUInt16();
         payload.height = br.ReadUInt16();
+
+        if (ver == 7)
+        {
+            payload.baseFloorPrefabId = br.ReadUInt16();
+            payload.groundYcm = br.ReadInt16();
+
+            ushort bitmapLen = br.ReadUInt16();
+            payload.floorBitmap = bitmapLen > 0 ? br.ReadBytes(bitmapLen) : Array.Empty<byte>();
+
+            ushort commonOverridePrefabId = br.ReadUInt16();
+            ushort overridesCount = br.ReadUInt16();
+            payload.floorOverrides = new List<FloorOverrideRecord>(overridesCount);
+            for (int i = 0; i < overridesCount; i++)
+            {
+                ushort prefabId = commonOverridePrefabId != 0 ? commonOverridePrefabId : br.ReadUInt16();
+                ushort cellIndex = br.ReadUInt16();
+                ushort x = (ushort)(cellIndex % payload.width);
+                ushort z = (ushort)(cellIndex / payload.width);
+                payload.floorOverrides.Add(new FloorOverrideRecord
+                {
+                    prefabId = prefabId,
+                    x = x,
+                    z = z
+                });
+            }
+
+            payload.player = new PlayerRecord
+            {
+                x = br.ReadInt16(),
+                z = br.ReadInt16(),
+                yCm = br.ReadInt16(),
+                rot = br.ReadByte()
+            };
+
+            byte paletteCount = br.ReadByte();
+            var palette = new ushort[paletteCount];
+            for (int i = 0; i < paletteCount; i++)
+            {
+                palette[i] = br.ReadUInt16();
+            }
+
+            ushort objCount = br.ReadUInt16();
+            payload.objects = new List<LevelObjectRecord>(objCount);
+            for (int i = 0; i < objCount; i++)
+            {
+                ushort cellIndex = br.ReadUInt16();
+                byte palIdx = br.ReadByte();
+                byte meta = br.ReadByte();
+                byte rot = (byte)(meta & 3);
+                bool hasY = (meta & 4) != 0;
+                bool hasColor = (meta & 8) != 0;
+                bool hasExplosionEffect = (meta & 16) != 0;
+                short yDelta = hasY ? br.ReadInt16() : (short)0;
+                Color32 color = default;
+                if (hasColor)
+                {
+                    byte r = br.ReadByte();
+                    byte g = br.ReadByte();
+                    byte b = br.ReadByte();
+                    byte a = br.ReadByte();
+                    color = new Color32(r, g, b, a);
+                }
+
+                ushort explosionEffectId = hasExplosionEffect ? br.ReadUInt16() : (ushort)0;
+
+                ushort x = (ushort)(cellIndex % payload.width);
+                ushort z = (ushort)(cellIndex / payload.width);
+
+                payload.objects.Add(new LevelObjectRecord
+                {
+                    prefabId = palette[palIdx],
+                    x = x,
+                    z = z,
+                    yCm = (short)(payload.groundYcm + yDelta),
+                    rot = rot,
+                    hasColor = hasColor,
+                    color = color,
+                    hasExplosionEffect = hasExplosionEffect,
+                    explosionEffectId = explosionEffectId
+                });
+            }
+
+            ushort linkCount = br.ReadUInt16();
+            payload.bombLinks = new List<BombDetonatorLinkRecord>(linkCount);
+            for (int i = 0; i < linkCount; i++)
+            {
+                payload.bombLinks.Add(new BombDetonatorLinkRecord
+                {
+                    detonatorCellIndex = br.ReadUInt16(),
+                    bombCellIndex = br.ReadUInt16()
+                });
+            }
+
+            return payload;
+        }
+
+        if (ver == 6)
+        {
+            payload.baseFloorPrefabId = br.ReadUInt16();
+            payload.groundYcm = br.ReadInt16();
+
+            ushort bitmapLen = br.ReadUInt16();
+            payload.floorBitmap = bitmapLen > 0 ? br.ReadBytes(bitmapLen) : Array.Empty<byte>();
+
+            ushort commonOverridePrefabId = br.ReadUInt16();
+            ushort overridesCount = br.ReadUInt16();
+            payload.floorOverrides = new List<FloorOverrideRecord>(overridesCount);
+            for (int i = 0; i < overridesCount; i++)
+            {
+                ushort prefabId = commonOverridePrefabId != 0 ? commonOverridePrefabId : br.ReadUInt16();
+                ushort cellIndex = br.ReadUInt16();
+                ushort x = (ushort)(cellIndex % payload.width);
+                ushort z = (ushort)(cellIndex / payload.width);
+                payload.floorOverrides.Add(new FloorOverrideRecord
+                {
+                    prefabId = prefabId,
+                    x = x,
+                    z = z
+                });
+            }
+
+            payload.player = new PlayerRecord
+            {
+                x = br.ReadInt16(),
+                z = br.ReadInt16(),
+                yCm = br.ReadInt16(),
+                rot = br.ReadByte()
+            };
+
+            byte paletteCount = br.ReadByte();
+            var palette = new ushort[paletteCount];
+            for (int i = 0; i < paletteCount; i++)
+            {
+                palette[i] = br.ReadUInt16();
+            }
+
+            ushort objCount = br.ReadUInt16();
+            payload.objects = new List<LevelObjectRecord>(objCount);
+            for (int i = 0; i < objCount; i++)
+            {
+                ushort cellIndex = br.ReadUInt16();
+                byte palIdx = br.ReadByte();
+                byte meta = br.ReadByte();
+                byte rot = (byte)(meta & 3);
+                bool hasY = (meta & 4) != 0;
+                bool hasColor = (meta & 8) != 0;
+                bool hasExplosionEffect = (meta & 16) != 0;
+                short yDelta = hasY ? br.ReadInt16() : (short)0;
+                Color32 color = default;
+                if (hasColor)
+                {
+                    byte r = br.ReadByte();
+                    byte g = br.ReadByte();
+                    byte b = br.ReadByte();
+                    byte a = br.ReadByte();
+                    color = new Color32(r, g, b, a);
+                }
+
+                ushort explosionEffectId = hasExplosionEffect ? br.ReadUInt16() : (ushort)0;
+
+                ushort x = (ushort)(cellIndex % payload.width);
+                ushort z = (ushort)(cellIndex / payload.width);
+
+                payload.objects.Add(new LevelObjectRecord
+                {
+                    prefabId = palette[palIdx],
+                    x = x,
+                    z = z,
+                    yCm = (short)(payload.groundYcm + yDelta),
+                    rot = rot,
+                    hasColor = hasColor,
+                    color = color,
+                    hasExplosionEffect = hasExplosionEffect,
+                    explosionEffectId = explosionEffectId
+                });
+            }
+
+            return payload;
+        }
+
+        if (ver == 5)
+        {
+            payload.baseFloorPrefabId = br.ReadUInt16();
+            payload.groundYcm = br.ReadInt16();
+
+            ushort bitmapLen = br.ReadUInt16();
+            payload.floorBitmap = bitmapLen > 0 ? br.ReadBytes(bitmapLen) : Array.Empty<byte>();
+
+            ushort commonOverridePrefabId = br.ReadUInt16();
+            ushort overridesCount = br.ReadUInt16();
+            payload.floorOverrides = new List<FloorOverrideRecord>(overridesCount);
+            for (int i = 0; i < overridesCount; i++)
+            {
+                ushort prefabId = commonOverridePrefabId != 0 ? commonOverridePrefabId : br.ReadUInt16();
+                ushort cellIndex = br.ReadUInt16();
+                ushort x = (ushort)(cellIndex % payload.width);
+                ushort z = (ushort)(cellIndex / payload.width);
+                payload.floorOverrides.Add(new FloorOverrideRecord
+                {
+                    prefabId = prefabId,
+                    x = x,
+                    z = z
+                });
+            }
+
+            payload.player = new PlayerRecord
+            {
+                x = br.ReadInt16(),
+                z = br.ReadInt16(),
+                yCm = br.ReadInt16(),
+                rot = br.ReadByte()
+            };
+
+            byte paletteCount = br.ReadByte();
+            var palette = new ushort[paletteCount];
+            for (int i = 0; i < paletteCount; i++)
+            {
+                palette[i] = br.ReadUInt16();
+            }
+
+            ushort objCount = br.ReadUInt16();
+            payload.objects = new List<LevelObjectRecord>(objCount);
+            for (int i = 0; i < objCount; i++)
+            {
+                ushort cellIndex = br.ReadUInt16();
+                byte palIdx = br.ReadByte();
+                byte meta = br.ReadByte();
+                byte rot = (byte)(meta & 3);
+                bool hasY = (meta & 4) != 0;
+                bool hasColor = (meta & 8) != 0;
+                short yDelta = hasY ? br.ReadInt16() : (short)0;
+                Color32 color = default;
+                if (hasColor)
+                {
+                    byte r = br.ReadByte();
+                    byte g = br.ReadByte();
+                    byte b = br.ReadByte();
+                    byte a = br.ReadByte();
+                    color = new Color32(r, g, b, a);
+                }
+
+                ushort x = (ushort)(cellIndex % payload.width);
+                ushort z = (ushort)(cellIndex / payload.width);
+
+                payload.objects.Add(new LevelObjectRecord
+                {
+                    prefabId = palette[palIdx],
+                    x = x,
+                    z = z,
+                    yCm = (short)(payload.groundYcm + yDelta),
+                    rot = rot,
+                    hasColor = hasColor,
+                    color = color,
+                    hasExplosionEffect = false,
+                    explosionEffectId = 0
+                });
+            }
+
+            return payload;
+        }
 
         if (ver == 4)
         {
@@ -680,7 +1546,11 @@ public class LevelCodeManager : MonoBehaviour
                     x = x,
                     z = z,
                     yCm = (short)(payload.groundYcm + yDelta),
-                    rot = rot
+                    rot = rot,
+                    hasColor = false,
+                    color = default,
+                    hasExplosionEffect = false,
+                    explosionEffectId = 0
                 });
             }
 
@@ -723,6 +1593,7 @@ public class LevelCodeManager : MonoBehaviour
             rot = br.ReadByte()
         };
         payload.objects = new List<LevelObjectRecord>();
+        payload.bombLinks = new List<BombDetonatorLinkRecord>();
 
         ushort count = br.ReadUInt16();
         payload.objects.Capacity = count;
@@ -734,7 +1605,11 @@ public class LevelCodeManager : MonoBehaviour
                 x = br.ReadUInt16(),
                 z = br.ReadUInt16(),
                 yCm = br.ReadInt16(),
-                rot = br.ReadByte()
+                rot = br.ReadByte(),
+                hasColor = false,
+                color = default,
+                hasExplosionEffect = false,
+                explosionEffectId = 0
             });
         }
 
@@ -767,7 +1642,7 @@ public class LevelCodeManager : MonoBehaviour
         var cells = new HashSet<GridCell>();
         var overrides = new Dictionary<GridCell, ushort>();
         int groundYcm = 0;
-        bool ySet = false;
+        var yFreq = new Dictionary<int, int>(16);
 
         foreach (var t in scope)
         {
@@ -780,11 +1655,8 @@ public class LevelCodeManager : MonoBehaviour
             var cell = new GridCell((short)gx, (short)gz);
             cells.Add(cell);
 
-            if (!ySet)
-            {
-                groundYcm = Mathf.RoundToInt(t.position.y * 100f);
-                ySet = true;
-            }
+            int ycm = Mathf.RoundToInt(t.position.y * 100f);
+            if (yFreq.TryGetValue(ycm, out var cnt)) yFreq[ycm] = cnt + 1; else yFreq[ycm] = 1;
 
             if ((!string.IsNullOrEmpty(fragileTileTag) && go.CompareTag(fragileTileTag)) || go.GetComponent<FragileTile>() != null)
             {
@@ -793,6 +1665,20 @@ public class LevelCodeManager : MonoBehaviour
                     overrides[cell] = entry.id;
                 }
             }
+        }
+
+        if (yFreq.Count > 0)
+        {
+            int bestY = 0, bestCount = -1;
+            foreach (var kv in yFreq)
+            {
+                if (kv.Value > bestCount)
+                {
+                    bestCount = kv.Value;
+                    bestY = kv.Key;
+                }
+            }
+            groundYcm = bestY;
         }
 
         return new GroundInfo
@@ -904,32 +1790,54 @@ public class LevelCodeManager : MonoBehaviour
         Vector3 p = cube.transform.position;
         int gx = Mathf.RoundToInt(p.x / cube.tileSize);
         int gz = Mathf.RoundToInt(p.z / cube.tileSize);
+
+        Vector3 dir = cube.mainPointer != null ? cube.mainPointer.forward : cube.transform.forward;
+        if (dir.sqrMagnitude < 1e-6f) dir = Vector3.forward;
+
         return new PlayerRecord
         {
             x = (short)gx,
             z = (short)gz,
             yCm = (short)Mathf.RoundToInt(p.y * 100f),
-            rot = (byte)RotationToIndex(Quaternion.LookRotation(cube.currentDirection.sqrMagnitude > 1e-6f ? cube.currentDirection : Vector3.forward))
+            rot = (byte)RotationToIndex(Quaternion.LookRotation(dir))
         };
     }
 
     private void ApplyPlayer(DickControlledCube cube, PlayerRecord player)
     {
-        cube.StopGame();
         float wy = player.yCm / 100f;
         Vector3 pos = new Vector3(player.x * tileSize, wy, player.z * tileSize);
-        cube.transform.position = pos;
         Vector3 dir = IndexToRotation(player.rot) * Vector3.forward;
-        cube.UpdateDirection(dir);
+
+        if (cube.TryGetComponent<Rigidbody>(out var rb))
+        {
+            rb.isKinematic = true;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        cube.movementEnabled = false;
+        cube.transform.position = pos;
+        cube.transform.rotation = Quaternion.LookRotation(dir);
+
         cube.InitialPosition = pos;
         cube.InitialDirection = dir;
-        cube.ResetToInitialState();
+
+        cube.ForceUpdateDirection(dir);
+        Physics.SyncTransforms();
+        
+        var saver = FindAnyObjectByType<TransformSaver>();
+        if (saver != null)
+        {
+            saver.SaveCurrentTransforms();
+        }
     }
 
     [Serializable]
     private struct InstanceInfo
     {
         public ushort prefabId;
+        public GameObject source;
         public Vector3 position;
         public Quaternion rotation;
         public bool usesRotation;
@@ -944,6 +1852,10 @@ public class LevelCodeManager : MonoBehaviour
         public ushort z;
         public short yCm;
         public byte rot;
+        public bool hasColor;
+        public Color32 color;
+        public bool hasExplosionEffect;
+        public ushort explosionEffectId;
     }
 
     [Serializable]
@@ -952,6 +1864,13 @@ public class LevelCodeManager : MonoBehaviour
         public ushort prefabId;
         public ushort x;
         public ushort z;
+    }
+
+    [Serializable]
+    private struct BombDetonatorLinkRecord
+    {
+        public ushort detonatorCellIndex;
+        public ushort bombCellIndex;
     }
 
     [Serializable]
@@ -976,6 +1895,7 @@ public class LevelCodeManager : MonoBehaviour
         public List<FloorOverrideRecord> floorOverrides;
         public PlayerRecord player;
         public List<LevelObjectRecord> objects;
+        public List<BombDetonatorLinkRecord> bombLinks;
     }
 
     private readonly struct GridCell : IEquatable<GridCell>
