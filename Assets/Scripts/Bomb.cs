@@ -192,6 +192,18 @@ public class Bomb : MonoBehaviour, IResettable
         // Смещаем центр коробки вверх на половину высоты взрыва, чтобы она покрывала пространство над землей
         Vector3 boxCenter = transform.position + Vector3.up * (explosionHeight * 0.5f);
         Vector3 halfExtents = new Vector3(boxSize * 0.5f, explosionHeight * 0.5f, boxSize * 0.5f);
+
+        // Цепной взрыв: если в зоне есть другие бомбы, они тоже детонируют
+        Collider[] chainHits = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity);
+        foreach (Collider c in chainHits)
+        {
+            if (c == null) continue;
+            Bomb other = c.GetComponent<Bomb>();
+            if (other != null && other != this && other.gameObject.activeInHierarchy)
+            {
+                other.TriggerImmediateExplosion();
+            }
+        }
         
         // Проверяем игрока СНАЧАЛА, чтобы цепочка взрывов была логичной
         Collider[] players = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity, playerLayer);
