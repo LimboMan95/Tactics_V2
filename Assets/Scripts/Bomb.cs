@@ -3,11 +3,19 @@ using System.Collections;
 
 public class Bomb : MonoBehaviour, IResettable
 {
+    public enum ExplosionShape : byte
+    {
+        Square = 0,
+        Line = 1
+    }
+
     [Header("Настройки")]
     public Color bombColor = Color.magenta;
     public float explosionDelay = 0.8f;
     public float collisionDelay = 0.2f;
     public int explosionSize = 4;  // Размер квадрата взрыва (4 = 4x4 клетки)
+    public ExplosionShape explosionShape = ExplosionShape.Square;
+    public int lineLength = 2;
     public float tileSize = 1f;     // Размер клетки
     public float explosionHeight = 2f; // Высота зоны поражения взрыва
     
@@ -50,9 +58,23 @@ public class Bomb : MonoBehaviour, IResettable
         radiusObj.transform.SetParent(transform);
         radiusObj.transform.localPosition = Vector3.zero;
         radiusObj.transform.localRotation = Quaternion.identity;
-        
-        float boxSize = (explosionSize - 1) * tileSize;
-        float halfSize = boxSize * 0.5f;
+
+        float halfX;
+        float halfZ;
+        if (explosionShape == ExplosionShape.Line)
+        {
+            float perpHalf = Mathf.Max(0.01f, (tileSize * 0.5f) - 0.01f);
+            float alongHalf = Mathf.Max(0f, (lineLength - 1) * tileSize) + Mathf.Max(0.01f, (tileSize * 0.5f) - 0.01f);
+            halfX = perpHalf;
+            halfZ = alongHalf;
+        }
+        else
+        {
+            float boxSize = (explosionSize - 1) * tileSize;
+            float halfSize = boxSize * 0.5f;
+            halfX = halfSize;
+            halfZ = halfSize;
+        }
         
         // ЗАЛИВКА (КРАСНЫЙ ПОЛУПРОЗРАЧНЫЙ)
         GameObject fillObj = new GameObject("Fill");
@@ -65,10 +87,10 @@ public class Bomb : MonoBehaviour, IResettable
         Mesh fillMeshData = new Mesh();
         fillMeshData.vertices = new Vector3[]
         {
-            new Vector3(-halfSize, 0.1f, -halfSize),
-            new Vector3( halfSize, 0.1f, -halfSize),
-            new Vector3( halfSize, 0.1f,  halfSize),
-            new Vector3(-halfSize, 0.1f,  halfSize)
+            new Vector3(-halfX, 0.1f, -halfZ),
+            new Vector3( halfX, 0.1f, -halfZ),
+            new Vector3( halfX, 0.1f,  halfZ),
+            new Vector3(-halfX, 0.1f,  halfZ)
         };
         fillMeshData.triangles = new int[] { 0, 1, 2, 0, 2, 3 };
         fillMeshData.RecalculateNormals();
@@ -89,13 +111,31 @@ public class Bomb : MonoBehaviour, IResettable
         line.positionCount = 5;
         line.useWorldSpace = false;
         
-        line.SetPosition(0, new Vector3(-halfSize, 0.11f, -halfSize));
-        line.SetPosition(1, new Vector3( halfSize, 0.11f, -halfSize));
-        line.SetPosition(2, new Vector3( halfSize, 0.11f,  halfSize));
-        line.SetPosition(3, new Vector3(-halfSize, 0.11f,  halfSize));
-        line.SetPosition(4, new Vector3(-halfSize, 0.11f, -halfSize));
+        line.SetPosition(0, new Vector3(-halfX, 0.11f, -halfZ));
+        line.SetPosition(1, new Vector3( halfX, 0.11f, -halfZ));
+        line.SetPosition(2, new Vector3( halfX, 0.11f,  halfZ));
+        line.SetPosition(3, new Vector3(-halfX, 0.11f,  halfZ));
+        line.SetPosition(4, new Vector3(-halfX, 0.11f, -halfZ));
         
         radiusObj.SetActive(false);
+    }
+
+    public void ApplyExplosionConfig(ExplosionShape shape, int squareSize, int lineLen)
+    {
+        explosionShape = shape;
+        explosionSize = squareSize;
+        lineLength = lineLen;
+        RebuildRadiusVisual();
+    }
+
+    private void RebuildRadiusVisual()
+    {
+        if (radiusObj != null)
+        {
+            Destroy(radiusObj);
+            radiusObj = null;
+        }
+        CreateRadiusVisual();
     }
     
     public void ShowRadius(bool show)
@@ -187,14 +227,27 @@ public class Bomb : MonoBehaviour, IResettable
         // Сначала отключаем визуальную часть бомбы
         if (bombRenderer != null) bombRenderer.enabled = false;
         GetComponent<Collider>().enabled = false;
-        
-        float boxSize = (explosionSize - 1) * tileSize;
-        // Смещаем центр коробки вверх на половину высоты взрыва, чтобы она покрывала пространство над землей
+
         Vector3 boxCenter = transform.position + Vector3.up * (explosionHeight * 0.5f);
-        Vector3 halfExtents = new Vector3(boxSize * 0.5f, explosionHeight * 0.5f, boxSize * 0.5f);
+        Vector3 halfExtents;
+        Quaternion boxRotation;
+
+        if (explosionShape == ExplosionShape.Line)
+        {
+            float perpHalf = Mathf.Max(0.01f, (tileSize * 0.5f) - 0.01f);
+            float alongHalf = Mathf.Max(0f, (lineLength - 1) * tileSize) + Mathf.Max(0.01f, (tileSize * 0.5f) - 0.01f);
+            halfExtents = new Vector3(perpHalf, explosionHeight * 0.5f, alongHalf);
+            boxRotation = transform.rotation;
+        }
+        else
+        {
+            float boxSize = (explosionSize - 1) * tileSize;
+            halfExtents = new Vector3(boxSize * 0.5f, explosionHeight * 0.5f, boxSize * 0.5f);
+            boxRotation = Quaternion.identity;
+        }
 
         // Цепной взрыв: если в зоне есть другие бомбы, они тоже детонируют
-        Collider[] chainHits = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity);
+        Collider[] chainHits = Physics.OverlapBox(boxCenter, halfExtents, boxRotation);
         foreach (Collider c in chainHits)
         {
             if (c == null) continue;
@@ -206,7 +259,7 @@ public class Bomb : MonoBehaviour, IResettable
         }
         
         // Проверяем игрока СНАЧАЛА, чтобы цепочка взрывов была логичной
-        Collider[] players = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity, playerLayer);
+        Collider[] players = Physics.OverlapBox(boxCenter, halfExtents, boxRotation, playerLayer);
         foreach (Collider player in players)
         {
             DickControlledCube cube = player.GetComponent<DickControlledCube>();
@@ -218,7 +271,7 @@ public class Bomb : MonoBehaviour, IResettable
         }
         
         // Уничтожаем ящики
-        Collider[] hitObjects = Physics.OverlapBox(boxCenter, halfExtents, Quaternion.identity, destructibleLayer);
+        Collider[] hitObjects = Physics.OverlapBox(boxCenter, halfExtents, boxRotation, destructibleLayer);
         foreach (Collider obj in hitObjects)
         {
             Crate crate = obj.GetComponent<Crate>();
@@ -266,11 +319,24 @@ public class Bomb : MonoBehaviour, IResettable
     
     void OnDrawGizmosSelected()
     {
-        float boxSize = (explosionSize - 1) * tileSize;
         Vector3 boxCenter = transform.position + Vector3.up * (explosionHeight * 0.5f);
-        Vector3 size = new Vector3(boxSize, explosionHeight, boxSize);
-        
         Gizmos.color = new Color(1, 0, 0, 0.5f);
-        Gizmos.DrawWireCube(boxCenter, size);
+
+        if (explosionShape == ExplosionShape.Line)
+        {
+            float perp = Mathf.Max(0.02f, tileSize - 0.02f);
+            float along = (Mathf.Max(0f, (lineLength - 1) * tileSize) + Mathf.Max(0.01f, (tileSize * 0.5f) - 0.01f)) * 2f;
+            Vector3 size = new Vector3(perp, explosionHeight, along);
+            Matrix4x4 prev = Gizmos.matrix;
+            Gizmos.matrix = Matrix4x4.TRS(boxCenter, transform.rotation, Vector3.one);
+            Gizmos.DrawWireCube(Vector3.zero, size);
+            Gizmos.matrix = prev;
+        }
+        else
+        {
+            float boxSize = (explosionSize - 1) * tileSize;
+            Vector3 size = new Vector3(boxSize, explosionHeight, boxSize);
+            Gizmos.DrawWireCube(boxCenter, size);
+        }
     }
 }
