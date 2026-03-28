@@ -110,11 +110,10 @@ public void ResetTransforms()
     var colliders = cubeController.GetComponents<Collider>();
 
     // 3. Жёсткий сброс
-    rb.isKinematic = true;
-    cubeController.transform.position = savedTransforms.position;
-    cubeController.transform.rotation = savedTransforms.rotation;
-    Physics.SyncTransforms(); // Принудительно обновляем физику
-rb.WakeUp(); // Будим Rigidbody
+    if (rb != null) rb.isKinematic = true;
+    cubeController.ResetToInitialState();
+    Physics.SyncTransforms();
+    if (rb != null) rb.WakeUp();
 
     // 4. Перезагрузка коллайдеров
     foreach (var col in colliders)
@@ -123,18 +122,13 @@ rb.WakeUp(); // Будим Rigidbody
         col.enabled = true;
     }
 
-    // 5. Восстановление указателей
-    // Указатели синхронизируются от текущего направления куба
-
-    // 6. Обновление направления
-    cubeController.ForceUpdateDirection(cubeController.InitialDirection);
-
-    // 7. Включение обратно
-    rb.isKinematic = false;
+    // 5. Включение обратно
+    if (rb != null) rb.isKinematic = false;
     cubeController.enabled = true;
     cubeController.Revive(); // Вызовет ResetCollisionEffect внутри себя
     cubeController.movementEnabled = !disableMovementOnReset;
     ResetResettableObjects();
+    SaveCurrentTransforms();
 
     Debug.Log("Complete reset with color reset");
 }
