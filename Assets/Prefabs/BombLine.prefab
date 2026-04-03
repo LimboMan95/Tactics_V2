@@ -31,8 +31,8 @@ Transform:
   m_GameObject: {fileID: 4664394717098288805}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 6.2861786, y: 4.333821, z: -6.8103957}
-  m_LocalScale: {x: 0.3, y: 0.3, z: 0.8}
+  m_LocalPosition: {x: 6, y: 0.15, z: -7}
+  m_LocalScale: {x: 0.3, y: 0.5, z: 0.8}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -125,7 +125,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   tileSize: {x: 1, y: 1}
   centerOnTile: 1
-  yOffset: 0.15
+  yOffset: 0.25
   snapToGround: 1
   lockYPosition: 1
   autoAdjustHeight: 1
