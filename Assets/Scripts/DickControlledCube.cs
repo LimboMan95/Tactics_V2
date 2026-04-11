@@ -103,11 +103,15 @@ public string speedTileTag = "Speed";
 public Color speedTileHighlightColor = new Color(1, 0.92f, 0.015f, 1);
 public float speedMultiplier = 2f;
 public float speedBoostDuration = 1.5f;
+public Material speedBoostMaterial;
 private bool isSpeedBoosted = false; // ← ПЕРЕМЕЩАЕМ СЮДА!
 
 private float originalSpeed;
 public bool IsSpeedBoosted => isSpeedBoosted;
 private Coroutine speedBoostCoroutine;
+private MeshRenderer[] cachedRenderers;
+private Material[][] cachedRendererMaterials;
+private bool speedBoostMaterialApplied;
 
 [HideInInspector]
 public Vector3 InitialDirection;
@@ -219,6 +223,13 @@ private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameOb
         originalColor = GetComponent<MeshRenderer>().material.color;
 
          originalSpeed = speed; // ← ДОБАВЛЯЕМ В Start()
+
+        cachedRenderers = GetComponentsInChildren<MeshRenderer>(true);
+        cachedRendererMaterials = new Material[cachedRenderers.Length][];
+        for (int i = 0; i < cachedRenderers.Length; i++)
+        {
+            cachedRendererMaterials[i] = cachedRenderers[i] != null ? cachedRenderers[i].sharedMaterials : null;
+        }
     }
 
     void Update()
@@ -413,7 +424,7 @@ private IEnumerator SpeedBoostRoutine()
     Debug.Log($"Скорость x{speedMultiplier}! Вжух!");
     
     // Визуальный эффект
-    SetColor(Color.yellow);
+    ApplySpeedBoostVisual(true);
     
     yield return new WaitForSeconds(speedBoostDuration);
     
@@ -422,7 +433,7 @@ private IEnumerator SpeedBoostRoutine()
     {
         speed = originalSpeed;
         isSpeedBoosted = false;
-        SetColor(originalColor);
+        ApplySpeedBoostVisual(false);
         Debug.Log("Скорость вернулась к нормальной");
     }
 }
@@ -1186,7 +1197,7 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
     
     isSpeedBoosted = false;
     speed = originalSpeed;
-    SetColor(originalColor);
+    ApplySpeedBoostVisual(false);
     Debug.Log("Speed boost reset");
 }
     
@@ -1476,6 +1487,49 @@ public void ForceUpdateDirection(Vector3 newDirection)
     materialBlock.SetColor("_BaseColor", color); // Для URP/HDRP
     materialBlock.SetColor("_Color", color);    // Для стандартного шейдера
     renderer.SetPropertyBlock(materialBlock);
+}
+
+    void ApplySpeedBoostVisual(bool enabled)
+{
+    if (speedBoostMaterial == null)
+    {
+        if (enabled) SetColor(Color.yellow);
+        else SetColor(originalColor);
+        return;
+    }
+
+    if (cachedRenderers == null || cachedRendererMaterials == null)
+        return;
+
+    if (enabled)
+    {
+        if (speedBoostMaterialApplied) return;
+        for (int i = 0; i < cachedRenderers.Length; i++)
+        {
+            var r = cachedRenderers[i];
+            if (r == null) continue;
+            var src = cachedRendererMaterials[i];
+            int len = src != null ? src.Length : 1;
+            var mats = new Material[len];
+            for (int j = 0; j < len; j++) mats[j] = speedBoostMaterial;
+            r.sharedMaterials = mats;
+            r.SetPropertyBlock(null);
+        }
+        speedBoostMaterialApplied = true;
+    }
+    else
+    {
+        if (!speedBoostMaterialApplied) return;
+        for (int i = 0; i < cachedRenderers.Length; i++)
+        {
+            var r = cachedRenderers[i];
+            if (r == null) continue;
+            var mats = cachedRendererMaterials[i];
+            if (mats != null) r.sharedMaterials = mats;
+            r.SetPropertyBlock(null);
+        }
+        speedBoostMaterialApplied = false;
+    }
 }
 
     void OnDisable()

@@ -2095,6 +2095,7 @@ MonoBehaviour:
   speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   speedMultiplier: 2
   speedBoostDuration: 1.75
+  speedBoostMaterial: {fileID: 2100000, guid: 32c88cbf83cd4e34f81f55f8c70505f4, type: 2}
   InitialDirection: {x: 0, y: 0, z: 0}
   isRotating: 0
   isGrounded: 1
