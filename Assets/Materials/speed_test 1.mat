@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Char
+  m_Name: speed_test 1
   m_Shader: {fileID: -6465566751694194690, guid: 62505504f9cc3b348ac73f05841e79c7, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -69,7 +69,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Texture2D:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: 54410a80bfbe21845b1869d2ceae505d, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - unity_Lightmaps:
@@ -100,7 +100,7 @@ Material:
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _DstBlendAlpha: 0
-    - _EdgeWidth: 0.85
+    - _EdgeWidth: 0.9
     - _EnvironmentReflections: 1
     - _GlossMapScale: 0
     - _Glossiness: 0
@@ -122,11 +122,11 @@ Material:
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 0.13333333, b: 0.9595932, a: 1}
-    - _Color: {r: 1, g: 0.1333333, b: 0.9595931, a: 1}
-    - _EdgeColor: {r: 2.9960785, g: 0, b: 2.5799565, a: 0}
+    - _Color: {r: 0.5999999, g: 0.5999999, b: 0.5999999, a: 1}
+    - _EdgeColor: {r: 5.6722608, g: 6.4291587, b: 0, a: 1}
     - _EmissionColor: {r: 2, g: 0.031992584, b: 1.826198, a: 1}
     - _FaceColor: {r: 0.94716984, g: 0.3341901, b: 0.94716984, a: 1}
-    - _IconColor: {r: 0.00073146453, g: 0.00073146453, b: 0.00073146453, a: 0}
+    - _IconColor: {r: 2.270602, g: 0.57442456, b: 0, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
