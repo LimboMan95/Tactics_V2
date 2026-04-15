@@ -1277,6 +1277,11 @@ public void ResetAllTileColors()
 {
     CancelInvoke(nameof(ResetLastTileColor));
     
+    if (lastHighlightedTile != null)
+    {
+        ResetTileColor(lastHighlightedTile);
+    }
+
     // Сбрасываем все тайлы, цвета которых мы сохранили
     foreach (var tileEntry in tileOriginalColors)
     {
@@ -1684,15 +1689,17 @@ bool ShouldSnapToGrid()
 
     void ResetTileColor(GameObject tile)
 {
-    if (tile != null && tileOriginalColors.ContainsKey(tile))
-    {
-        var visual = tile.GetComponent<ToolPlacementVisual>();
-        if (visual != null)
-        {
-            visual.Restore();
-            return;
-        }
+    if (tile == null) return;
 
+    var visual = tile.GetComponent<ToolPlacementVisual>();
+    if (visual != null)
+    {
+        visual.Restore();
+        return;
+    }
+
+    if (tileOriginalColors.ContainsKey(tile))
+    {
         Renderer renderer = tile.GetComponent<Renderer>();
         if (renderer != null) 
         {
