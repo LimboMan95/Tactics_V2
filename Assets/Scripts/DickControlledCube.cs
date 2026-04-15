@@ -1643,6 +1643,8 @@ bool ShouldSnapToGrid()
 
     void HighlightTile(GameObject tile, Color highlightColor)
     {
+        var visual = tile != null ? tile.GetComponent<ToolPlacementVisual>() : null;
+
         // 1. Если мы сменили тайл, сбрасываем старый немедленно
         if (lastHighlightedTile != null && lastHighlightedTile != tile)
         {
@@ -1653,6 +1655,13 @@ bool ShouldSnapToGrid()
         // 2. Если это новый тайл, устанавливаем его цвет и сохраняем оригинал
         if (lastHighlightedTile != tile)
         {
+            if (visual != null)
+            {
+                visual.CaptureOriginal();
+                visual.Apply(ToolPlacementVisual.VisualState.Activated);
+            }
+            else
+            {
             Renderer tileRenderer = tile.GetComponent<Renderer>();
             if (tileRenderer != null)
             {
@@ -1662,6 +1671,7 @@ bool ShouldSnapToGrid()
                 }
                 
                 tileRenderer.material.color = highlightColor;
+            }
             }
             lastHighlightedTile = tile;
         }
@@ -1676,6 +1686,13 @@ bool ShouldSnapToGrid()
 {
     if (tile != null && tileOriginalColors.ContainsKey(tile))
     {
+        var visual = tile.GetComponent<ToolPlacementVisual>();
+        if (visual != null)
+        {
+            visual.Restore();
+            return;
+        }
+
         Renderer renderer = tile.GetComponent<Renderer>();
         if (renderer != null) 
         {

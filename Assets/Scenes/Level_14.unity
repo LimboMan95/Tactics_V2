@@ -1006,6 +1006,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Tile_speed
       objectReference: {fileID: 0}
+    - target: {fileID: 4480979781033950693, guid: ed2e0ef61c0115d419bc13de4f5107d9, type: 3}
+      propertyPath: overrides.Array.data[0].sourceMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 386a57aa7c6557d4895ca00d6dc21c2b, type: 2}
     - target: {fileID: 6983619829676458677, guid: ed2e0ef61c0115d419bc13de4f5107d9, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0.7138214
@@ -3351,6 +3355,10 @@ PrefabInstance:
     - target: {fileID: 1927603240298844349, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
       propertyPath: m_AnchoredPosition.x
       value: 94.20001
+      objectReference: {fileID: 0}
+    - target: {fileID: 1927603240298844349, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -80.52301
       objectReference: {fileID: 0}
     - target: {fileID: 2205388984870728037, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
       propertyPath: m_Name

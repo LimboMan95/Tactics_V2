@@ -51,6 +51,7 @@ public class GridObjectMover : MonoBehaviour
     private bool isObjectSelected = false;
     private bool isDragging = false;
     private bool isPermanentlySelected = false;
+    private ToolPlacementVisual selectedPlacementVisual;
 
 
     private void Awake()
@@ -421,6 +422,19 @@ public void RotateSelectedObjectRight()
         return;
     }
     
+    if (selectedPlacementVisual != null)
+    {
+        if (isRotating)
+        {
+            selectedPlacementVisual.Apply(ToolPlacementVisual.VisualState.Rotating);
+        }
+        else
+        {
+            selectedPlacementVisual.Apply(isValid ? ToolPlacementVisual.VisualState.Valid : ToolPlacementVisual.VisualState.Invalid);
+        }
+        return;
+    }
+
     if (objectRenderers == null)
     {
         Debug.LogWarning("objectRenderers is null!");
@@ -463,6 +477,12 @@ public void RotateSelectedObjectRight()
 
     private void RestoreOriginalMaterials()
     {
+        if (selectedPlacementVisual != null)
+        {
+            selectedPlacementVisual.Restore();
+            selectedPlacementVisual = null;
+        }
+
         foreach (var kvp in originalMaterials)
         {
             if (kvp.Key != null && kvp.Value != null)
@@ -569,6 +589,12 @@ public void RotateSelectedObjectRight()
         selectedObject = obj;
         originalObjectPosition = obj.transform.position;
 
+        selectedPlacementVisual = obj.GetComponent<ToolPlacementVisual>();
+        if (selectedPlacementVisual != null)
+        {
+            selectedPlacementVisual.CaptureOriginal();
+        }
+
         objectRenderers = obj.GetComponentsInChildren<Renderer>();
         if (objectRenderers == null || objectRenderers.Length == 0)
         {
@@ -576,17 +602,20 @@ public void RotateSelectedObjectRight()
             return;
         }
 
-        originalMaterials.Clear();
-        foreach (var renderer in objectRenderers)
+        if (selectedPlacementVisual == null)
         {
-            if (renderer == null) continue;
-            
-            Material[] materialsCopy = new Material[renderer.materials.Length];
-            for (int i = 0; i < renderer.materials.Length; i++)
+            originalMaterials.Clear();
+            foreach (var renderer in objectRenderers)
             {
-                materialsCopy[i] = new Material(renderer.materials[i]);
+                if (renderer == null) continue;
+                
+                Material[] materialsCopy = new Material[renderer.materials.Length];
+                for (int i = 0; i < renderer.materials.Length; i++)
+                {
+                    materialsCopy[i] = new Material(renderer.materials[i]);
+                }
+                originalMaterials[renderer] = materialsCopy;
             }
-            originalMaterials[renderer] = materialsCopy;
         }
         
         Bomb bomb = obj.GetComponent<Bomb>();
@@ -634,6 +663,7 @@ public void RotateSelectedObjectRight()
         
         selectedObject = null;
         objectRenderers = null;
+        selectedPlacementVisual = null;
         isPermanentlySelected = false;
         isDragging = false;
         
