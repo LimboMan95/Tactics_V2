@@ -129,6 +129,9 @@ public Vector3 InitialDirection;
     private float halfTileSize;
     private Vector3 tileEntryPoint;
     private bool isOnDirectionTile;
+    private GameObject lastSpeedTile;
+    private Vector3 speedTileEntryPoint;
+    private bool isOnSpeedTile;
     public bool IsGrounded => isGrounded;
     public Vector3 InitialPosition;
 public Rigidbody RB;
@@ -251,6 +254,7 @@ public float GetBaseSpeed()
 
 void CheckSpeedTileUnderneath()
 {
+    if (isJumping || !isGrounded) return;
     if (string.IsNullOrEmpty(speedTileTag)) return;
     if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
     {
@@ -707,6 +711,7 @@ private void CheckImmediateTileActivation()
             if (distanceToCenter <= triggerCenterThreshold)
             {
                 Debug.Log($"📏 CheckImmediate: прыжок на {hit.collider.name} | distance={distanceToCenter} | threshold={triggerCenterThreshold}");
+                ActivateTileVisual(hit.collider.gameObject, jumpTileHighlightColor);
                 PerformJump();
                 isOnJumpTile = false;
             }
@@ -720,7 +725,12 @@ private void CheckImmediateTileActivation()
         }
         else if (hit.collider.CompareTag(speedTileTag))
         {
-            ActivateSpeedBoost();
+            if (!isJumping && isGrounded)
+            {
+                lastSpeedTile = hit.collider.gameObject;
+                speedTileEntryPoint = transform.position;
+                isOnSpeedTile = true;
+            }
         }
     }
 }
@@ -809,8 +819,21 @@ if (isOnDirectionTile && !isRotating && lastDirectionTile != null)
             float distance = Vector3.Dot(transform.position - jumpTileEntryPoint, currentDirection);
             if (distance >= tileSize * 0.5f)
             {
+                ActivateTileVisual(lastJumpTile, jumpTileHighlightColor);
                 PerformJump();
                 isOnJumpTile = false;
+            }
+        }
+
+        if (isOnSpeedTile && !isJumping && lastSpeedTile != null)
+        {
+            float distance = Vector3.Dot(transform.position - speedTileEntryPoint, currentDirection);
+            if (distance >= tileSize * 0.5f)
+            {
+                ActivateTileVisual(lastSpeedTile, speedTileHighlightColor);
+                ActivateSpeedBoost();
+                isOnSpeedTile = false;
+                lastSpeedTile = null;
             }
         }
         
@@ -829,6 +852,7 @@ if (isOnDirectionTile && !isRotating && lastDirectionTile != null)
 
 void CheckJumpTileUnderneath()
 {
+    if (isJumping || !isGrounded) return;
     if (string.IsNullOrEmpty(jumpTileTag)) return;
     if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
     {
@@ -891,7 +915,12 @@ void CheckJumpTileUnderneath()
     
     if (!string.IsNullOrEmpty(speedTileTag) && other.CompareTag(speedTileTag))
     {
-        ActivateSpeedBoost();
+        if (!isJumping && isGrounded)
+        {
+            lastSpeedTile = other.gameObject;
+            speedTileEntryPoint = transform.position;
+            isOnSpeedTile = true;
+        }
     }
 }
 
@@ -1637,6 +1666,7 @@ bool ShouldSnapToGrid()
 
     void CheckDirectionTileUnderneath()
     {
+        if (isJumping || !isGrounded) return;
         if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 1f))
         {
             if (hit.collider.CompareTag(directionTileTag))
@@ -1646,19 +1676,24 @@ bool ShouldSnapToGrid()
         }
     }
 
-    void HighlightTile(GameObject tile, Color highlightColor)
+    void HighlightTile(GameObject tile, Color highlightColor, bool useActivatedVisual)
     {
-        var visual = tile != null ? tile.GetComponent<ToolPlacementVisual>() : null;
+        if (tile == null) return;
+
+        var visual = tile.GetComponentInParent<ToolPlacementVisual>();
+        if (visual == null) visual = tile.GetComponentInChildren<ToolPlacementVisual>(true);
+        GameObject tileKey = visual != null ? visual.gameObject : tile;
 
         // 1. Если мы сменили тайл, сбрасываем старый немедленно
-        if (lastHighlightedTile != null && lastHighlightedTile != tile)
+        if (lastHighlightedTile != null && lastHighlightedTile != tileKey)
         {
             ResetTileColor(lastHighlightedTile);
             CancelInvoke(nameof(ResetLastTileColor));
+            lastHighlightedTile = null;
         }
 
         // 2. Если это новый тайл, устанавливаем его цвет и сохраняем оригинал
-        if (lastHighlightedTile != tile)
+        if (lastHighlightedTile != tileKey)
         {
             if (visual != null)
             {
@@ -1667,18 +1702,18 @@ bool ShouldSnapToGrid()
             }
             else
             {
-            Renderer tileRenderer = tile.GetComponent<Renderer>();
+            Renderer tileRenderer = tileKey.GetComponent<Renderer>();
             if (tileRenderer != null)
             {
-                if (!tileOriginalColors.ContainsKey(tile))
+                if (!tileOriginalColors.ContainsKey(tileKey))
                 {
-                    tileOriginalColors[tile] = tileRenderer.material.color;
+                    tileOriginalColors[tileKey] = tileRenderer.material.color;
                 }
                 
                 tileRenderer.material.color = highlightColor;
             }
             }
-            lastHighlightedTile = tile;
+            lastHighlightedTile = tileKey;
         }
         
         // 3. Обновляем таймер сброса, чтобы подсветка не исчезала пока мы на тайле
@@ -1687,11 +1722,22 @@ bool ShouldSnapToGrid()
         Invoke(nameof(ResetLastTileColor), highlightDuration);
     }
 
+    void HighlightTile(GameObject tile, Color highlightColor)
+    {
+        HighlightTile(tile, highlightColor, false);
+    }
+
+    void ActivateTileVisual(GameObject tile, Color fallbackColor)
+    {
+        HighlightTile(tile, fallbackColor, true);
+    }
+
     void ResetTileColor(GameObject tile)
 {
     if (tile == null) return;
 
-    var visual = tile.GetComponent<ToolPlacementVisual>();
+    var visual = tile.GetComponentInParent<ToolPlacementVisual>();
+    if (visual == null) visual = tile.GetComponentInChildren<ToolPlacementVisual>(true);
     if (visual != null)
     {
         visual.Restore();
