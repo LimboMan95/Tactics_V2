@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 8830693197529846467}
   - component: {fileID: 8443203954464539302}
   - component: {fileID: 2737107268155214200}
+  - component: {fileID: 3928358926154404566}
   - component: {fileID: 7600142933527774016}
   m_Layer: 7
   m_Name: Detonator
@@ -67,7 +68,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 4456971326d7fe4448981690625f8612, type: 2}
+  - {fileID: 2100000, guid: 7e7532d60491a964d81c2eda31d66605, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -131,6 +132,29 @@ MonoBehaviour:
   useFixedSnapping: 0
   gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
+--- !u!114 &3928358926154404566
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6542538175533667843}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ffff56e93fd9e1d49a9d011f76014954, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rendererSwaps: []
+  simpleSwaps: []
+  overrides:
+  - renderer: {fileID: 8830693197529846467}
+    sourceMaterial: {fileID: 2100000, guid: 7e7532d60491a964d81c2eda31d66605, type: 2}
+    materialIndex: 0
+    hoverMaterial: {fileID: 0}
+    validMaterial: {fileID: 2100000, guid: ae79c5a949c18f642a38422f6f2bab0a, type: 2}
+    invalidMaterial: {fileID: 2100000, guid: e90d80f0ff885b044bb94bcc867c752d, type: 2}
+    activatedMaterial: {fileID: 2100000, guid: 894e92e454b83eb4c98afe7ed5399d3e, type: 2}
+    rotatingMaterial: {fileID: 0}
 --- !u!114 &7600142933527774016
 MonoBehaviour:
   m_ObjectHideFlags: 0

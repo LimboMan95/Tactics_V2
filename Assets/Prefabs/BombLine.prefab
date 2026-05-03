@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 4983489131502192449}
   - component: {fileID: 4827648153264288481}
   - component: {fileID: 6417170095718143260}
+  - component: {fileID: -7350604077887887725}
   - component: {fileID: 7660309842287587557}
   - component: {fileID: 85230084848229251}
   m_Layer: 7
@@ -68,7 +69,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: c8914e810e0d63a45bd7817a65e7ffef, type: 2}
+  - {fileID: 2100000, guid: 8c99416f132a21a4d88dc0d85a2b5064, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -132,6 +133,29 @@ MonoBehaviour:
   useFixedSnapping: 0
   gridAnchor: {x: 0, y: 0}
   gizmoColor: {r: 1, g: 0.5, b: 0, a: 0.5}
+--- !u!114 &-7350604077887887725
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4664394717098288805}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ffff56e93fd9e1d49a9d011f76014954, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rendererSwaps: []
+  simpleSwaps: []
+  overrides:
+  - renderer: {fileID: 4983489131502192449}
+    sourceMaterial: {fileID: 2100000, guid: 8c99416f132a21a4d88dc0d85a2b5064, type: 2}
+    materialIndex: 0
+    hoverMaterial: {fileID: 0}
+    validMaterial: {fileID: 2100000, guid: 17d7b17e34c7c16408098d2b338cb6a5, type: 2}
+    invalidMaterial: {fileID: 2100000, guid: 4a530964c6fcb364691a2dc42207c8e7, type: 2}
+    activatedMaterial: {fileID: 0}
+    rotatingMaterial: {fileID: 0}
 --- !u!114 &7660309842287587557
 MonoBehaviour:
   m_ObjectHideFlags: 0
