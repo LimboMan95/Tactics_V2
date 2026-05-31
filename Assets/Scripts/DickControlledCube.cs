@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 [RequireComponent(typeof(Rigidbody))]
 public class DickControlledCube : MonoBehaviour
@@ -1149,7 +1150,16 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
     yield return new WaitForSeconds(levelCompleteDelay);
     
     // 4. Показываем UI
-    if (levelCompleteUI != null)
+    bool comicPlayed = false;
+    var comicSystem = FindObjectOfType<ComicCutsceneSystem>(true);
+    if (comicSystem != null)
+    {
+        int completedLevelIndex = SceneManager.GetActiveScene().buildIndex;
+        int nextSceneIndex = completedLevelIndex + 1;
+        comicPlayed = comicSystem.TryPlayAfterLevel(completedLevelIndex, nextSceneIndex);
+    }
+
+    if (!comicPlayed && levelCompleteUI != null)
     {
         levelCompleteUI.SetActive(true);
         Debug.Log("✅ UI SHOWN");

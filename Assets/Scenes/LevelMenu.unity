@@ -384,6 +384,63 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 35345528}
   m_CullTransparentMesh: 1
+--- !u!1 &46908604
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 46908606}
+  - component: {fileID: 46908605}
+  m_Layer: 0
+  m_Name: ComicCutsceneSystem
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &46908605
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 46908604}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cbaf3244e9f46f47b242ff6af638224, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fadeDuration: 0.4
+  playBeforeFirstLevel: 1
+  firstGameplayLevelBuildIndex: 1
+  dontDestroyOnLoad: 1
+  frameBorderPixels: 8
+  textPlateAlpha: 0.939
+  frameTextFontOverride: {fileID: 0}
+  frameTextFontSizeOverride: 35
+  sequences:
+  - {fileID: 11400000, guid: 1d79a58a459197241a3558e21aac5499, type: 2}
+  - {fileID: 11400000, guid: 19cf17788aecca849b5c84eb4b3e1ce1, type: 2}
+  - {fileID: 11400000, guid: ae00917f1522c2d41b9a217f69f4120e, type: 2}
+  ui: {fileID: 0}
+--- !u!4 &46908606
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 46908604}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &95239184
 GameObject:
   m_ObjectHideFlags: 0
@@ -14614,3 +14671,4 @@ SceneRoots:
   - {fileID: 1303457049}
   - {fileID: 2080923792}
   - {fileID: 1929414498}
+  - {fileID: 46908606}

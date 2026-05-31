@@ -1,0 +1,92 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79e14b6a6464b4a4abdff0885e48bede, type: 3}
+  m_Name: Scene 1 Before LVL 1
+  m_EditorClassIdentifier: 
+  triggerAfterLevelIndex: 0
+  pages:
+  - frame0:
+      sprite: {fileID: 21300000, guid: b557a06fac3fa8b48a26dc87047330ce, type: 3}
+      showTextPlate: 1
+      frameText: "\u042D\u0445\u0445\u0445\u0445..."
+    frame1:
+      sprite: {fileID: 21300000, guid: b32459c5eac7b5c42a1c05195cb4fd96, type: 3}
+      showTextPlate: 1
+      frameText: "\u041D\u0438\u043A, \u043D\u0430\u043C \u043D\u0430\u0434\u043E
+        2500 \u0438\u043D\u0430\u0447\u0435 \u043D\u0430\u0441 \u0432\u044B\u0441\u0435\u043B\u044F\u0442
+        \u0434\u043E \u043A\u043E\u043D\u0446\u0430 \u043D\u0435\u0434\u0435\u043B\u0438"
+    frame2:
+      sprite: {fileID: 21300000, guid: d1b696ea91871d04e91583d1766dbe6b, type: 3}
+      showTextPlate: 1
+      frameText: "\u0417\u043D\u0430\u044E \u043C\u0438\u043B\u0430\u044F"
+  - frame0:
+      sprite: {fileID: 21300000, guid: f80ce38e8818f214b8b9a5d5d9ac4c8c, type: 3}
+      showTextPlate: 1
+      frameText: "\u0428\u0430\u0440\u043B\u043E\u0442\u0442\u0430, \u044F \u043F\u0440\u0438\u0434\u0443\u043C\u0430\u044E
+        \u0447\u0442\u043E-\u043D\u0438\u0431\u0443\u0434\u044C. \u0418\u0434\u0438
+        \u043E\u0442\u0434\u044B\u0445\u0430\u0439"
+    frame1:
+      sprite: {fileID: 21300000, guid: 7cff159063cfb2641947905eaf7381df, type: 3}
+      showTextPlate: 1
+      frameText: "\u0425\u043E\u0440\u043E\u0448\u043E, \u043D\u0435 \u0437\u0430\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0439\u0441\u044F
+        \u0441\u0438\u043B\u044C\u043D\u043E"
+    frame2:
+      sprite: {fileID: 21300000, guid: c2a1c2dfa16c69046b7b958ba9284f54, type: 3}
+      showTextPlate: 1
+      frameText: "\u041F\u043E\u0441\u043C\u043E\u0442\u0440\u0438\u043C"
+  - frame0:
+      sprite: {fileID: 21300000, guid: aadfe8c34d9a9c44bae536d5fee50346, type: 3}
+      showTextPlate: 1
+      frameText: "\u0419\u043E\u0431\u0430\u043D\u044B \u043F\u0438\u0437\u0434\u0435\u0446
+        \u043A\u0430\u043A \u0432\u0441\u0435 \u043F\u043B\u043E\u0445\u043E"
+    frame1:
+      sprite: {fileID: 21300000, guid: 4c5b65811d5acb44cb222c00d0a71fc4, type: 3}
+      showTextPlate: 1
+      frameText: "\u0415\u0441\u043B\u0438 \u044F \u043D\u0435 \u043D\u0430\u0439\u0434\u0443
+        \u0434\u0435\u043D\u0435\u0433, \u043D\u0430\u0441 \u0432\u044B\u0441\u0442\u0430\u0432\u044F\u0442
+        \u043D\u0430 \u0443\u043B\u0438\u0446\u0443. \u041A\u0430\u043A \u043C\u043D\u0435
+        \u0441\u043F\u0440\u0430\u0432\u0438\u0442\u0441\u044F \u0441 \u044D\u0442\u0438\u043C"
+    frame2:
+      sprite: {fileID: 21300000, guid: 45ace525d327e8642b441342773f4340, type: 3}
+      showTextPlate: 1
+      frameText: "\u0410 \u044D\u0442\u043E \u0435\u0449\u0435 \u0447\u0442\u043E? "
+  - frame0:
+      sprite: {fileID: 21300000, guid: 7958ae0a9673d204b9d0464f086533f4, type: 3}
+      showTextPlate: 0
+      frameText: 
+    frame1:
+      sprite: {fileID: 21300000, guid: c9e3ad3572d389a4d891f9916b727ef2, type: 3}
+      showTextPlate: 1
+      frameText: "\u0411\u043B\u044F\u0434\u044C, \u043E\u043D\u0438 \u0440\u0435\u0430\u043B\u044C\u043D\u043E
+        \u043F\u0440\u0438\u0441\u043B\u0430\u043B\u0438 \u0434\u0435\u043D\u044C\u0433\u0438!"
+    frame2:
+      sprite: {fileID: 21300000, guid: 0db6d363f11207041b1f415d52724a5b, type: 3}
+      showTextPlate: 1
+      frameText: "\u0427\u0442\u043E \u043F\u0440\u043E\u0438\u0441\u0445\u043E\u0434\u0438\u0442
+        \u0432\u043E\u043E\u0431\u0449\u0435?"
+  - frame0:
+      sprite: {fileID: 21300000, guid: 384241d551330724a9a2dbc4321146cc, type: 3}
+      showTextPlate: 1
+      frameText: "\u0427\u0442\u043E \u044D\u0442\u043E \u0437\u0430 \u0444\u0438\u0440\u043C\u0430?
+        \u042F \u043D\u0435 \u0441\u043B\u044B\u0448\u0430\u043B \u043E \u043D\u0438\u0445
+        \u0440\u0430\u043D\u044C\u0448\u0435"
+    frame1:
+      sprite: {fileID: 21300000, guid: afee856f664092a46a35cf7397e85066, type: 3}
+      showTextPlate: 0
+      frameText: 
+    frame2:
+      sprite: {fileID: 21300000, guid: ab22fc8860d45b742b811433dcb5e094, type: 3}
+      showTextPlate: 1
+      frameText: "\u041F\u043E\u0445\u043E\u0436\u0435 \u0443 \u043C\u0435\u043D\u044F
+        \u043D\u0435\u0442 \u0432\u044B\u0431\u043E\u0440\u0430. \u042F \u0434\u043E\u043B\u0436\u0435\u043D
+        \u0441\u043F\u0430\u0441\u0442\u0438 \u043D\u0430\u0448\u0443 \u0441 \u0428\u0430\u0440\u043B\u043E\u0442\u0442\u043E\u0439
+        \u0436\u0438\u0437\u043D\u044C"
