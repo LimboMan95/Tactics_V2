@@ -44,4 +44,13 @@ public class SceneLoader : MonoBehaviour
             Debug.LogError("Invalid scene index: " + indexString);
         }
     }
+
+    public void QuitGame()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+    }
 }

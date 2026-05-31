@@ -1282,6 +1282,7 @@ MonoBehaviour:
   speedTileHighlightColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   speedMultiplier: 2
   speedBoostDuration: 1.75
+  speedBoostMaterial: {fileID: 0}
   InitialDirection: {x: 0, y: 0, z: 0}
   isRotating: 0
   isGrounded: 1
@@ -1910,10 +1911,26 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: -5
       objectReference: {fileID: 0}
+    - target: {fileID: 7874966292833860359, guid: 5e65c47cf5aa0e145be92e2e73ab0ad2, type: 3}
+      propertyPath: m_ReferencePixelsPerUnit
+      value: 100
+      objectReference: {fileID: 0}
     - target: {fileID: 8569970739406614730, guid: 5e65c47cf5aa0e145be92e2e73ab0ad2, type: 3}
       propertyPath: m_Camera
       value: 
       objectReference: {fileID: 330585545}
+    - target: {fileID: 8569970739406614730, guid: 5e65c47cf5aa0e145be92e2e73ab0ad2, type: 3}
+      propertyPath: m_RenderMode
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8569970739406614730, guid: 5e65c47cf5aa0e145be92e2e73ab0ad2, type: 3}
+      propertyPath: m_SortingOrder
+      value: 102
+      objectReference: {fileID: 0}
+    - target: {fileID: 8569970739406614730, guid: 5e65c47cf5aa0e145be92e2e73ab0ad2, type: 3}
+      propertyPath: m_PlaneDistance
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -3165,6 +3182,14 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: 98.55
       objectReference: {fileID: 0}
+    - target: {fileID: 1080061739997571710, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1080061739997571710, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -5
+      objectReference: {fileID: 0}
     - target: {fileID: 1927603240298844349, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
       propertyPath: m_AnchoredPosition.x
       value: 99.19995
@@ -3195,11 +3220,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3798494374063375177, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 2.8945
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 3798494374063375177, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: -84.901
+      value: -92
       objectReference: {fileID: 0}
     - target: {fileID: 4364564462673741386, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
       propertyPath: m_Pivot.x
@@ -3393,6 +3418,10 @@ PrefabInstance:
       propertyPath: m_Camera
       value: 
       objectReference: {fileID: 330585545}
+    - target: {fileID: 6505431593814516197, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
+      propertyPath: m_SortingOrder
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 6881135567934303955, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
       propertyPath: m_LocalPosition.z
       value: -0
@@ -3419,11 +3448,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8282267958157072232, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -5.4000015
+      value: -4
       objectReference: {fileID: 0}
     - target: {fileID: 8282267958157072232, guid: d51e5445ef9e10642b5eac9a1078ddb0, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 17.8
+      value: -9
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
