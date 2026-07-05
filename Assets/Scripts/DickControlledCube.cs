@@ -152,6 +152,8 @@ private GameObject lastJumpTile;
 private bool isOnJumpTile;
 private Vector3 jumpTileEntryPoint;
 private Dictionary<GameObject, Color> tileOriginalColors = new Dictionary<GameObject, Color>();
+private bool pendingImmediateJump;
+private GameObject pendingImmediateJumpTile;
 
     private BoxCollider _boxCollider;
     private const float SnapVelocityThreshold = 0.08f;
@@ -626,35 +628,37 @@ public void PerformJump()
     // Останавливаем горизонтальное движение перед снэпом
     RB.linearVelocity = new Vector3(0, RB.linearVelocity.y, 0);
     
-    // Снэпаем позицию
+    // Снэпаем позицию сразу, чтобы проверка тайла брала уже финальную клетку приземления
     Vector3 snappedPos = GetSnappedPosition(transform.position);
     snappedPos.y = transform.position.y;
-    RB.MovePosition(snappedPos);
+    RB.position = snappedPos;
     
+    // После снэпа заново подтверждаем grounded, иначе следующий прыжок может быть отклонён
+    isGrounded = CheckGround();
+
     // Проверяем поворотные тайлы
     CheckDirectionTileOnly();
     Debug.Log($"🪂 Приземление: pos={transform.position}");
-    
-    // Сбрасываем флаг прыжка
-    isJumping = false;
-    
-    // Проверяем все тайлы
-    CheckImmediateTileActivation();
-    
+
     // Нормализуем скорость после прыжка
     if (isSpeedBoosted)
         speed = originalSpeed * speedMultiplier;
     else
         speed = originalSpeed;
-    
-    // Если мы все еще на земле, возобновляем движение
-    if (isGrounded)
+
+    movementEnabled = wasMovementEnabled;
+
+    // Сбрасываем флаг прыжка только после полного post-landing cleanup.
+    // Иначе новый прыжок может стартовать из этого же coroutine, а хвост текущего перетрёт его состояние.
+    isJumping = false;
+
+    bool queuedFollowUpJump = CheckImmediateTileActivation(true);
+
+    // Если на клетке нет мгновенного повторного прыжка, возобновляем обычное движение
+    if (!queuedFollowUpJump && isGrounded)
     {
         RB.linearVelocity = currentDirection * speed;
     }
-    
-    movementEnabled = wasMovementEnabled;
-    isGrounded = CheckGround();
     
     Debug.Log($"Jump completed. Grounded: {isGrounded}");
     }
@@ -683,7 +687,7 @@ private void CheckDirectionTileOnly()
         }
     }
 }
-private void CheckImmediateTileActivation()
+private bool CheckImmediateTileActivation(bool deferJumpActivation = false)
 {
     if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 0.5f))
     {
@@ -713,8 +717,14 @@ private void CheckImmediateTileActivation()
             {
                 Debug.Log($"📏 CheckImmediate: прыжок на {hit.collider.name} | distance={distanceToCenter} | threshold={triggerCenterThreshold}");
                 ActivateTileVisual(hit.collider.gameObject, jumpTileHighlightColor);
-                PerformJump();
+                if (deferJumpActivation)
+                    QueueImmediateJump(hit.collider.gameObject);
+                else
+                    PerformJump();
+
                 isOnJumpTile = false;
+                lastJumpTile = hit.collider.gameObject;
+                return true;
             }
             else
             {
@@ -734,6 +744,37 @@ private void CheckImmediateTileActivation()
             }
         }
     }
+
+    return false;
+}
+
+private void QueueImmediateJump(GameObject jumpTile)
+{
+    pendingImmediateJump = true;
+    pendingImmediateJumpTile = jumpTile;
+}
+
+private bool TryStartPendingImmediateJump()
+{
+    if (!pendingImmediateJump || isJumping || isRotating)
+        return false;
+
+    isGrounded = CheckGround();
+    if (!isGrounded)
+        return false;
+
+    GameObject jumpTile = pendingImmediateJumpTile;
+    pendingImmediateJump = false;
+    pendingImmediateJumpTile = null;
+
+    if (jumpTile != null)
+    {
+        lastJumpTile = jumpTile;
+        ActivateTileVisual(jumpTile, jumpTileHighlightColor);
+    }
+
+    PerformJump();
+    return isJumping;
 }
 
 private void HandleImmediateFlagActivation(GameObject flag)
@@ -765,6 +806,10 @@ public void SetRotatingState(bool state) {
 {
     UpdateVisualPointers();
     PeriodicGroundCheck();
+
+    if (TryStartPendingImmediateJump())
+        return;
+
     if (isOnJumpTile && !isJumping && !isRotating && lastJumpTile != null)
 {
     float distance = Vector3.Dot(transform.position - jumpTileEntryPoint, currentDirection);
@@ -1060,6 +1105,8 @@ void OnTriggerStay(Collider other)
         isRotating = false;
         isOnDirectionTile = false;
         isOnJumpTile = false;
+        pendingImmediateJump = false;
+        pendingImmediateJumpTile = null;
         lastDirectionTile = null;
         lastJumpTile = null;
         currentFinishTrigger = null;
@@ -1180,15 +1227,21 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
     if (other.CompareTag(jumpTileTag))
     {
         Debug.Log($"🚪 Выход из прыжкового тайла {other.name} | Позиция: {transform.position}");
-        isOnJumpTile = false;
-        lastJumpTile = null;
+        if (other.gameObject == lastJumpTile)
+        {
+            isOnJumpTile = false;
+            lastJumpTile = null;
+        }
     }
     
     if (other.CompareTag(directionTileTag))
     {
         Debug.Log($"🚪 Выход из поворотного тайла {other.name} | Позиция: {transform.position}");
-        isOnDirectionTile = false;
-        lastDirectionTile = null;
+        if (other.gameObject == lastDirectionTile)
+        {
+            isOnDirectionTile = false;
+            lastDirectionTile = null;
+        }
     }
     
     if (other.gameObject == currentFinishTrigger)
