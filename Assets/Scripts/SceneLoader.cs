@@ -53,4 +53,16 @@ public class SceneLoader : MonoBehaviour
         Application.Quit();
 #endif
     }
+
+    public void LoadSceneByIndexAsLevelSelect(int sceneIndex)
+    {
+        GameFlowState.SetLevelSelectMode();
+        LoadSceneByIndex(sceneIndex);
+    }
+
+    public void LoadSceneByIndexAsStory(int sceneIndex)
+    {
+        GameFlowState.SetStoryMode();
+        LoadSceneByIndex(sceneIndex);
+    }
 }

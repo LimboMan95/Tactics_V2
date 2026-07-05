@@ -32,6 +32,9 @@ public class ComicCutsceneSystem : MonoBehaviour
     private bool _playing;
     private static readonly HashSet<int> _playedTriggersThisSession = new HashSet<int>();
     private static ComicCutsceneSystem _instance;
+#if UNITY_EDITOR
+    [System.NonSerialized] private ComicCutsceneUI _editorPreviewUi;
+#endif
 
     private void Awake()
     {
@@ -73,6 +76,7 @@ public class ComicCutsceneSystem : MonoBehaviour
 
     public bool TryPlayAfterLevel(int completedLevelBuildIndex, int nextSceneBuildIndex)
     {
+        if (!GameFlowState.ShouldPlayComics) return false;
         if (_playing) return true;
 
         var matches = CollectSequencesForTrigger(completedLevelBuildIndex);
@@ -84,10 +88,16 @@ public class ComicCutsceneSystem : MonoBehaviour
 
     public bool TryPlayTrigger(int triggerAfterLevelIndex, int nextSceneBuildIndex, bool loadSceneOnFinish)
     {
+        if (!GameFlowState.ShouldPlayComics) return false;
         if (_playing) return true;
 
         var matches = CollectSequencesForTrigger(triggerAfterLevelIndex);
         if (matches.Count == 0) return false;
+
+        if (triggerAfterLevelIndex == 0)
+        {
+            _playedTriggersThisSession.Add(0);
+        }
 
         PlaySequences(matches, nextSceneBuildIndex, loadSceneOnFinish);
         return true;
@@ -100,6 +110,7 @@ public class ComicCutsceneSystem : MonoBehaviour
 
     private void TryAutoPlayBeforeFirstLevel()
     {
+        if (!GameFlowState.ShouldPlayComics) return;
         if (_playing) return;
         if (!playBeforeFirstLevel) return;
         if (SceneManager.GetActiveScene().buildIndex != firstGameplayLevelBuildIndex) return;
@@ -142,6 +153,7 @@ public class ComicCutsceneSystem : MonoBehaviour
             ui.Initialize(fadeDuration);
         }
         ApplyVisualSettingsToUi();
+        if (!ui.gameObject.activeSelf) ui.gameObject.SetActive(true);
         ui.RefreshBorders();
 
         if (dontDestroyOnLoad && loadSceneOnFinish && ui != null)
@@ -171,17 +183,18 @@ public class ComicCutsceneSystem : MonoBehaviour
     {
         if (previewSequence == null || previewSequence.pages == null || previewSequence.pages.Count == 0) return;
 
-        EnsurePreviewUiExists();
-        ApplyVisualSettingsToUi();
+        var previewUi = EnsurePreviewUiExists();
+        ApplyVisualSettingsToUi(previewUi);
         previewPageIndex = Mathf.Clamp(previewPageIndex, 0, previewSequence.pages.Count - 1);
         previewVisibleFrames = Mathf.Clamp(previewVisibleFrames, 1, 3);
-        ui.ShowPreviewPage(previewSequence.pages[previewPageIndex], previewVisibleFrames);
+        previewUi.ShowPreviewPage(previewSequence.pages[previewPageIndex], previewVisibleFrames);
     }
 
     public void EditorClearPreview()
     {
-        if (ui == null) return;
-        ui.ClearPreview();
+        var previewUi = GetEditorPreviewUi();
+        if (previewUi == null) return;
+        previewUi.ClearPreview();
     }
 
     public void EditorPreviewNextPage()
@@ -216,29 +229,48 @@ public class ComicCutsceneSystem : MonoBehaviour
         EditorPreviewSelected();
     }
 
-    private void EnsurePreviewUiExists()
+    private ComicCutsceneUI EnsurePreviewUiExists()
     {
-        if (ui == null) ui = FindObjectOfType<ComicCutsceneUI>(true);
-        if (ui != null)
+        var previewUi = GetEditorPreviewUi();
+        if (previewUi != null)
         {
-            ui.EnsureBuiltForPreview();
-            return;
+            previewUi.EnsureBuiltForPreview();
+            return previewUi;
         }
 
-        var go = new GameObject("ComicCutsceneUI");
-        go.transform.SetParent(transform, false);
-        ui = go.AddComponent<ComicCutsceneUI>();
-        ui.buildIfMissingInPlayMode = true;
-        ApplyVisualSettingsToUi();
-        ui.EnsureBuiltForPreview();
+#if UNITY_EDITOR
+        var go = new GameObject("ComicCutscenePreviewUI");
+        go.hideFlags = HideFlags.DontSaveInEditor;
+        _editorPreviewUi = go.AddComponent<ComicCutsceneUI>();
+        _editorPreviewUi.buildIfMissingInPlayMode = true;
+        ApplyVisualSettingsToUi(_editorPreviewUi);
+        _editorPreviewUi.EnsureBuiltForPreview();
+        return _editorPreviewUi;
+#else
+        return null;
+#endif
     }
 
     private void ApplyVisualSettingsToUi()
     {
-        if (ui == null) return;
-        ui.frameBorderPixels = frameBorderPixels;
-        ui.textPlateAlpha = textPlateAlpha;
-        ui.frameTextFontOverride = frameTextFontOverride;
-        ui.frameTextFontSizeOverride = frameTextFontSizeOverride;
+        ApplyVisualSettingsToUi(ui);
+    }
+
+    private void ApplyVisualSettingsToUi(ComicCutsceneUI targetUi)
+    {
+        if (targetUi == null) return;
+        targetUi.frameBorderPixels = frameBorderPixels;
+        targetUi.textPlateAlpha = textPlateAlpha;
+        targetUi.frameTextFontOverride = frameTextFontOverride;
+        targetUi.frameTextFontSizeOverride = frameTextFontSizeOverride;
+    }
+
+    private ComicCutsceneUI GetEditorPreviewUi()
+    {
+#if UNITY_EDITOR
+        return _editorPreviewUi;
+#else
+        return null;
+#endif
     }
 }

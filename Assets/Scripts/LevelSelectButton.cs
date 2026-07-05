@@ -13,7 +13,7 @@ public class LevelSelectButton : MonoBehaviour
             return;
         }
 
+        GameFlowState.SetLevelSelectMode();
         SceneManager.LoadScene(sceneBuildIndex);
     }
 }
-

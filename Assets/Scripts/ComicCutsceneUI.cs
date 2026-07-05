@@ -55,6 +55,13 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
     private bool _defaultsCaptured;
     private TMP_FontAsset _defaultFrameTextFont;
     private float _defaultFrameTextFontSize;
+    private bool _isPreviewMode;
+
+    private void Awake()
+    {
+        if (!Application.isPlaying) return;
+        ForceRuntimeReset();
+    }
 
     public void Initialize(float fadeDuration)
     {
@@ -74,6 +81,21 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
         }
 
         HideImmediate();
+    }
+
+    private void ForceRuntimeReset()
+    {
+        _isActive = false;
+        _isAnimating = false;
+        _animationCount = 0;
+        _isPreviewMode = false;
+        _sequenceQueue = null;
+        _sequenceIndex = 0;
+        _pageIndex = 0;
+        _revealIndex = 0;
+
+        ResetDisplayState(clearContent: true);
+        SetUiVisible(false);
     }
 
     public void RefreshBorders()
@@ -101,8 +123,10 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
     {
         EnsureBuiltForPreview();
 
-        gameObject.SetActive(true);
+        if (!gameObject.activeSelf) gameObject.SetActive(true);
+        SetUiVisible(true);
         _isActive = false;
+        _isPreviewMode = true;
 
         if (screenGroup != null)
         {
@@ -133,6 +157,9 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
     public void ClearPreview()
     {
         HidePageImmediate();
+        ClearSlotContent(frame0);
+        ClearSlotContent(frame1);
+        ClearSlotContent(frame2);
         if (screenGroup != null)
         {
             screenGroup.alpha = 0f;
@@ -145,7 +172,8 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
             skipButton.gameObject.SetActive(true);
         }
 
-        gameObject.SetActive(false);
+        _isPreviewMode = false;
+        SetUiVisible(false);
     }
 
     public void Play(ComicSequence[] sequences, int nextSceneBuildIndex, bool loadSceneOnFinish)
@@ -153,15 +181,21 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
         if (sequences == null || sequences.Length == 0) return;
         if (_isActive) return;
 
+        if (!gameObject.activeSelf) gameObject.SetActive(true);
+        _isPreviewMode = false;
         _sequenceQueue = sequences;
         _sequenceIndex = 0;
         _pageIndex = 0;
         _revealIndex = 0;
         _nextSceneBuildIndex = nextSceneBuildIndex;
         _loadSceneOnFinish = loadSceneOnFinish;
+        _animationCount = 0;
+        _isAnimating = false;
+
+        ResetDisplayState(clearContent: true);
+        SetUiVisible(true);
 
         _isActive = true;
-        gameObject.SetActive(true);
 
         StartCoroutine(PlayRoutine());
     }
@@ -266,6 +300,8 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
         if (slot.root == null) yield break;
         if (slot.group == null) yield break;
 
+        if (!slot.root.gameObject.activeSelf) slot.root.gameObject.SetActive(true);
+
         PushAnimation();
 
         if (frame.sprite != null && slot.image != null)
@@ -366,11 +402,10 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
         _sequenceIndex = 0;
         _pageIndex = 0;
         _revealIndex = 0;
+        _isPreviewMode = false;
 
-        HidePageImmediate();
-
-        if (screenGroup != null) screenGroup.alpha = 0f;
-        gameObject.SetActive(false);
+        ResetDisplayState(clearContent: true);
+        SetUiVisible(false);
     }
 
     private void HidePageImmediate()
@@ -387,9 +422,71 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
         if (slot.textGroup != null) slot.textGroup.alpha = 0f;
     }
 
+    private void ResetDisplayState(bool clearContent)
+    {
+        HidePageImmediate();
+
+        if (clearContent)
+        {
+            ClearSlotContent(frame0);
+            ClearSlotContent(frame1);
+            ClearSlotContent(frame2);
+        }
+
+        if (screenGroup != null)
+        {
+            screenGroup.alpha = 0f;
+            screenGroup.blocksRaycasts = true;
+            screenGroup.interactable = true;
+        }
+
+        if (dimBackground != null)
+        {
+            dimBackground.color = new Color(0f, 0f, 0f, 1f);
+        }
+
+        if (skipButton != null)
+        {
+            skipButton.gameObject.SetActive(true);
+        }
+    }
+
+    private void SetUiVisible(bool visible)
+    {
+        if (rootCanvas != null) rootCanvas.enabled = visible;
+        if (raycaster != null) raycaster.enabled = visible;
+    }
+
+    private static void ClearSlotContent(FrameSlot slot)
+    {
+        if (slot == null) return;
+        if (slot.group != null) slot.group.alpha = 0f;
+        if (slot.image != null)
+        {
+            slot.image.enabled = false;
+            slot.image.sprite = null;
+        }
+
+        if (slot.text != null)
+        {
+            slot.text.text = string.Empty;
+        }
+
+        if (slot.textPlateRoot != null)
+        {
+            slot.textPlateRoot.gameObject.SetActive(false);
+        }
+
+        if (slot.root != null)
+        {
+            slot.root.gameObject.SetActive(false);
+        }
+    }
+
     private static void SetSlotPreview(FrameSlot slot, ComicFrame frame, bool visible)
     {
         if (slot == null) return;
+        if (slot.root != null) slot.root.gameObject.SetActive(visible);
         if (slot.group != null) slot.group.alpha = visible ? 1f : 0f;
 
         bool wantsText = visible && frame.showTextPlate && !string.IsNullOrWhiteSpace(frame.frameText);
@@ -407,6 +504,7 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
     private static void ApplyFrameToSlot(FrameSlot slot, ComicFrame frame)
     {
         if (slot == null) return;
+        if (slot.root != null && !slot.root.gameObject.activeSelf) slot.root.gameObject.SetActive(true);
 
         ApplyBorder(slot);
         ApplyTextPlateStyle(slot);
@@ -507,9 +605,18 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
 
     private void BuildLayoutIfMissing()
     {
-        if (frame0 == null) frame0 = new FrameSlot();
-        if (frame1 == null) frame1 = new FrameSlot();
-        if (frame2 == null) frame2 = new FrameSlot();
+        if (contentRoot == null) return;
+
+        CleanupDuplicateGeneratedLayout();
+
+        if (HasValidBuiltLayout())
+        {
+            return;
+        }
+
+        frame0 = new FrameSlot();
+        frame1 = new FrameSlot();
+        frame2 = new FrameSlot();
 
         var rowGo = new GameObject("Row", typeof(RectTransform), typeof(HorizontalLayoutGroup));
         rowGo.transform.SetParent(contentRoot, false);
@@ -553,6 +660,88 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
         var bottomLe = bottom.gameObject.AddComponent<LayoutElement>();
         bottomLe.flexibleHeight = 1f;
         bottomLe.minHeight = 0f;
+    }
+
+    private bool HasValidBuiltLayout()
+    {
+        return frame0 != null && frame0.root != null &&
+               frame1 != null && frame1.root != null &&
+               frame2 != null && frame2.root != null;
+    }
+
+    private void CleanupDuplicateGeneratedLayout()
+    {
+        if (contentRoot == null) return;
+
+        Transform rowToKeep = null;
+        for (int i = contentRoot.childCount - 1; i >= 0; i--)
+        {
+            var child = contentRoot.GetChild(i);
+            if (child.name != "Row") continue;
+
+            if (rowToKeep == null)
+            {
+                rowToKeep = child;
+                continue;
+            }
+
+            DestroyGeneratedObject(child.gameObject);
+        }
+
+        if (rowToKeep == null)
+        {
+            frame0 = null;
+            frame1 = null;
+            frame2 = null;
+            return;
+        }
+
+        var left = rowToKeep.Find("Frame0_BigLeft");
+        var right = rowToKeep.Find("RightColumn");
+        var top = right != null ? right.Find("Frame1_TopRight") : null;
+        var bottom = right != null ? right.Find("Frame2_BottomRight") : null;
+
+        frame0 = CaptureExistingSlot(left);
+        frame1 = CaptureExistingSlot(top);
+        frame2 = CaptureExistingSlot(bottom);
+    }
+
+    private static FrameSlot CaptureExistingSlot(Transform root)
+    {
+        if (root == null) return null;
+
+        var slot = new FrameSlot();
+        slot.root = root as RectTransform;
+        slot.group = root.GetComponent<CanvasGroup>();
+
+        var sprite = root.Find("Sprite");
+        if (sprite != null)
+        {
+            slot.spriteRoot = sprite as RectTransform;
+            slot.image = sprite.GetComponent<Image>();
+        }
+
+        var plate = root.Find("TextPlate");
+        if (plate != null)
+        {
+            slot.textPlateRoot = plate as RectTransform;
+            slot.textGroup = plate.GetComponent<CanvasGroup>();
+            slot.textPlateBackground = plate.GetComponent<Image>();
+            var text = plate.Find("Text");
+            if (text != null)
+            {
+                slot.text = text.GetComponent<TMP_Text>();
+            }
+        }
+
+        return slot;
+    }
+
+    private static void DestroyGeneratedObject(GameObject go)
+    {
+        if (go == null) return;
+        if (Application.isPlaying) Destroy(go);
+        else DestroyImmediate(go);
     }
 
     private RectTransform BuildFrameContainer(string name, Transform parent, out FrameSlot slot)
@@ -704,7 +893,17 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
 
     private void BuildSkipButtonIfMissing()
     {
+        CleanupDuplicateSkipButtons();
         if (skipButton != null) return;
+
+        var existing = rootCanvas != null ? rootCanvas.transform.Find("SkipButton") : null;
+        if (existing != null)
+        {
+            skipButton = existing.GetComponent<Button>();
+            var existingText = existing.Find("Text");
+            if (existingText != null) skipButtonText = existingText.GetComponent<TMP_Text>();
+            if (skipButton != null) return;
+        }
 
         var btnGo = new GameObject("SkipButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
         btnGo.transform.SetParent(rootCanvas.transform, false);
@@ -736,5 +935,33 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
         tmp.color = Color.white;
 
         skipButtonText = tmp;
+    }
+
+    private void CleanupDuplicateSkipButtons()
+    {
+        if (rootCanvas == null) return;
+
+        Button keep = null;
+        for (int i = rootCanvas.transform.childCount - 1; i >= 0; i--)
+        {
+            var child = rootCanvas.transform.GetChild(i);
+            if (child.name != "SkipButton") continue;
+
+            var button = child.GetComponent<Button>();
+            if (keep == null && button != null)
+            {
+                keep = button;
+                continue;
+            }
+
+            DestroyGeneratedObject(child.gameObject);
+        }
+
+        if (keep != null)
+        {
+            skipButton = keep;
+            var text = keep.transform.Find("Text");
+            if (text != null) skipButtonText = text.GetComponent<TMP_Text>();
+        }
     }
 }
