@@ -1161,6 +1161,12 @@ IEnumerator CompleteLevelWithDelay(GameObject finishTrigger)
 
     if (!comicPlayed && levelCompleteUI != null)
     {
+        var completionUi = levelCompleteUI.GetComponent<LevelCompleteUI>();
+        if (completionUi != null)
+        {
+            completionUi.MarkLevelCompleted();
+        }
+
         levelCompleteUI.SetActive(true);
         Debug.Log("✅ UI SHOWN");
     }

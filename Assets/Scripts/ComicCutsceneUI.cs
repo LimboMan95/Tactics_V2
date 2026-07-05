@@ -57,6 +57,15 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
     private float _defaultFrameTextFontSize;
     private bool _isPreviewMode;
 
+    public bool IsRuntimeShowing
+    {
+        get
+        {
+            if (_isPreviewMode) return false;
+            return _isActive || _isAnimating || (rootCanvas != null && rootCanvas.enabled);
+        }
+    }
+
     private void Awake()
     {
         if (!Application.isPlaying) return;

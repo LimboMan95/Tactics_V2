@@ -72,6 +72,7 @@ public class ComicCutsceneSystem : MonoBehaviour
     private void Start()
     {
         TryAutoPlayBeforeFirstLevel();
+        SaveStoryLevelCheckpointForCurrentScene();
     }
 
     public bool TryPlayAfterLevel(int completedLevelBuildIndex, int nextSceneBuildIndex)
@@ -81,6 +82,11 @@ public class ComicCutsceneSystem : MonoBehaviour
 
         var matches = CollectSequencesForTrigger(completedLevelBuildIndex);
         if (matches.Count == 0) return false;
+
+        if (GameFlowState.CurrentMode == GameFlowMode.Story)
+        {
+            StorySaveManager.SaveComicResume(completedLevelBuildIndex, nextSceneBuildIndex);
+        }
 
         PlaySequences(matches, nextSceneBuildIndex, loadSceneOnFinish: true);
         return true;
@@ -99,6 +105,11 @@ public class ComicCutsceneSystem : MonoBehaviour
             _playedTriggersThisSession.Add(0);
         }
 
+        if (GameFlowState.CurrentMode == GameFlowMode.Story)
+        {
+            StorySaveManager.SaveComicResume(triggerAfterLevelIndex, nextSceneBuildIndex);
+        }
+
         PlaySequences(matches, nextSceneBuildIndex, loadSceneOnFinish);
         return true;
     }
@@ -106,6 +117,7 @@ public class ComicCutsceneSystem : MonoBehaviour
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         TryAutoPlayBeforeFirstLevel();
+        SaveStoryLevelCheckpointForCurrentScene();
     }
 
     private void TryAutoPlayBeforeFirstLevel()
@@ -116,11 +128,29 @@ public class ComicCutsceneSystem : MonoBehaviour
         if (SceneManager.GetActiveScene().buildIndex != firstGameplayLevelBuildIndex) return;
         if (_playedTriggersThisSession.Contains(0)) return;
 
+        var save = StorySaveManager.LoadOrCreate();
+        if (save.resumeType == StoryResumeType.Level && save.levelBuildIndex == firstGameplayLevelBuildIndex)
+        {
+            _playedTriggersThisSession.Add(0);
+            return;
+        }
+
         var matches = CollectSequencesForTrigger(0);
         if (matches.Count == 0) return;
 
         _playedTriggersThisSession.Add(0);
         PlaySequences(matches, nextSceneBuildIndex: firstGameplayLevelBuildIndex, loadSceneOnFinish: false);
+    }
+
+    private void SaveStoryLevelCheckpointForCurrentScene()
+    {
+        if (GameFlowState.CurrentMode != GameFlowMode.Story) return;
+
+        int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
+        if (currentSceneIndex < firstGameplayLevelBuildIndex) return;
+        if (_playing) return;
+
+        StorySaveManager.SaveLevelResume(currentSceneIndex);
     }
 
     private List<ComicSequence> CollectSequencesForTrigger(int triggerAfterLevelIndex)
@@ -172,11 +202,12 @@ public class ComicCutsceneSystem : MonoBehaviour
 
     private IEnumerator TrackUntilUiFinishes()
     {
-        while (ui != null && ui.gameObject.activeSelf)
+        while (ui != null && ui.IsRuntimeShowing)
         {
             yield return null;
         }
         _playing = false;
+        SaveStoryLevelCheckpointForCurrentScene();
     }
 
     public void EditorPreviewSelected()
