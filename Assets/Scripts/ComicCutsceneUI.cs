@@ -90,6 +90,64 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
         ApplyTextStyle(frame2);
     }
 
+    public void EnsureBuiltForPreview()
+    {
+        BuildIfMissing();
+        CaptureDefaultsIfNeeded();
+        RefreshBorders();
+    }
+
+    public void ShowPreviewPage(ComicPage page, int visibleFrames)
+    {
+        EnsureBuiltForPreview();
+
+        gameObject.SetActive(true);
+        _isActive = false;
+
+        if (screenGroup != null)
+        {
+            screenGroup.alpha = 1f;
+            screenGroup.blocksRaycasts = false;
+            screenGroup.interactable = false;
+        }
+
+        if (dimBackground != null)
+        {
+            dimBackground.color = new Color(0f, 0f, 0f, 1f);
+        }
+
+        if (skipButton != null)
+        {
+            skipButton.gameObject.SetActive(false);
+        }
+
+        ApplyFrameToSlot(frame0, page.frame0);
+        ApplyFrameToSlot(frame1, page.frame1);
+        ApplyFrameToSlot(frame2, page.frame2);
+
+        SetSlotPreview(frame0, page.frame0, visibleFrames >= 1);
+        SetSlotPreview(frame1, page.frame1, visibleFrames >= 2);
+        SetSlotPreview(frame2, page.frame2, visibleFrames >= 3);
+    }
+
+    public void ClearPreview()
+    {
+        HidePageImmediate();
+        if (screenGroup != null)
+        {
+            screenGroup.alpha = 0f;
+            screenGroup.blocksRaycasts = true;
+            screenGroup.interactable = true;
+        }
+
+        if (skipButton != null)
+        {
+            skipButton.gameObject.SetActive(true);
+        }
+
+        gameObject.SetActive(false);
+    }
+
     public void Play(ComicSequence[] sequences, int nextSceneBuildIndex, bool loadSceneOnFinish)
     {
         if (sequences == null || sequences.Length == 0) return;
@@ -327,6 +385,16 @@ public class ComicCutsceneUI : MonoBehaviour, IPointerClickHandler
         if (slot == null) return;
         if (slot.group != null) slot.group.alpha = alpha;
         if (slot.textGroup != null) slot.textGroup.alpha = 0f;
+    }
+
+    private static void SetSlotPreview(FrameSlot slot, ComicFrame frame, bool visible)
+    {
+        if (slot == null) return;
+        if (slot.group != null) slot.group.alpha = visible ? 1f : 0f;
+
+        bool wantsText = visible && frame.showTextPlate && !string.IsNullOrWhiteSpace(frame.frameText);
+        if (slot.textPlateRoot != null) slot.textPlateRoot.gameObject.SetActive(wantsText);
+        if (slot.textGroup != null) slot.textGroup.alpha = wantsText ? 1f : 0f;
     }
 
     private FrameSlot GetSlot(int index)

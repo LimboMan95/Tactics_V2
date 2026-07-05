@@ -24,6 +24,11 @@ public class ComicCutsceneSystem : MonoBehaviour
     [Header("UI")]
     public ComicCutsceneUI ui;
 
+    [Header("Editor Preview")]
+    public ComicSequence previewSequence;
+    [Min(0)] public int previewPageIndex = 0;
+    [Range(1, 3)] public int previewVisibleFrames = 3;
+
     private bool _playing;
     private static readonly HashSet<int> _playedTriggersThisSession = new HashSet<int>();
     private static ComicCutsceneSystem _instance;
@@ -45,10 +50,7 @@ public class ComicCutsceneSystem : MonoBehaviour
         if (ui == null) ui = FindObjectOfType<ComicCutsceneUI>(true);
         if (ui != null)
         {
-            ui.frameBorderPixels = frameBorderPixels;
-            ui.textPlateAlpha = textPlateAlpha;
-            ui.frameTextFontOverride = frameTextFontOverride;
-            ui.frameTextFontSizeOverride = frameTextFontSizeOverride;
+            ApplyVisualSettingsToUi();
             ui.Initialize(fadeDuration);
             ui.RefreshBorders();
         }
@@ -139,13 +141,7 @@ public class ComicCutsceneSystem : MonoBehaviour
             ui.frameTextFontSizeOverride = frameTextFontSizeOverride;
             ui.Initialize(fadeDuration);
         }
-        else
-        {
-            ui.frameBorderPixels = frameBorderPixels;
-            ui.textPlateAlpha = textPlateAlpha;
-            ui.frameTextFontOverride = frameTextFontOverride;
-            ui.frameTextFontSizeOverride = frameTextFontSizeOverride;
-        }
+        ApplyVisualSettingsToUi();
         ui.RefreshBorders();
 
         if (dontDestroyOnLoad && loadSceneOnFinish && ui != null)
@@ -169,5 +165,80 @@ public class ComicCutsceneSystem : MonoBehaviour
             yield return null;
         }
         _playing = false;
+    }
+
+    public void EditorPreviewSelected()
+    {
+        if (previewSequence == null || previewSequence.pages == null || previewSequence.pages.Count == 0) return;
+
+        EnsurePreviewUiExists();
+        ApplyVisualSettingsToUi();
+        previewPageIndex = Mathf.Clamp(previewPageIndex, 0, previewSequence.pages.Count - 1);
+        previewVisibleFrames = Mathf.Clamp(previewVisibleFrames, 1, 3);
+        ui.ShowPreviewPage(previewSequence.pages[previewPageIndex], previewVisibleFrames);
+    }
+
+    public void EditorClearPreview()
+    {
+        if (ui == null) return;
+        ui.ClearPreview();
+    }
+
+    public void EditorPreviewNextPage()
+    {
+        if (previewSequence == null || previewSequence.pages == null || previewSequence.pages.Count == 0) return;
+        previewPageIndex = Mathf.Min(previewPageIndex + 1, previewSequence.pages.Count - 1);
+        EditorPreviewSelected();
+    }
+
+    public void EditorPreviewPreviousPage()
+    {
+        if (previewSequence == null || previewSequence.pages == null || previewSequence.pages.Count == 0) return;
+        previewPageIndex = Mathf.Max(previewPageIndex - 1, 0);
+        EditorPreviewSelected();
+    }
+
+    public void EditorPreviewRevealOne()
+    {
+        previewVisibleFrames = 1;
+        EditorPreviewSelected();
+    }
+
+    public void EditorPreviewRevealTwo()
+    {
+        previewVisibleFrames = 2;
+        EditorPreviewSelected();
+    }
+
+    public void EditorPreviewRevealThree()
+    {
+        previewVisibleFrames = 3;
+        EditorPreviewSelected();
+    }
+
+    private void EnsurePreviewUiExists()
+    {
+        if (ui == null) ui = FindObjectOfType<ComicCutsceneUI>(true);
+        if (ui != null)
+        {
+            ui.EnsureBuiltForPreview();
+            return;
+        }
+
+        var go = new GameObject("ComicCutsceneUI");
+        go.transform.SetParent(transform, false);
+        ui = go.AddComponent<ComicCutsceneUI>();
+        ui.buildIfMissingInPlayMode = true;
+        ApplyVisualSettingsToUi();
+        ui.EnsureBuiltForPreview();
+    }
+
+    private void ApplyVisualSettingsToUi()
+    {
+        if (ui == null) return;
+        ui.frameBorderPixels = frameBorderPixels;
+        ui.textPlateAlpha = textPlateAlpha;
+        ui.frameTextFontOverride = frameTextFontOverride;
+        ui.frameTextFontSizeOverride = frameTextFontSizeOverride;
     }
 }
