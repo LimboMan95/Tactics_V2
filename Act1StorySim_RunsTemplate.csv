@@ -1,0 +1,11 @@
+run_id,step,archetype,CharlotteTrust,PatrickPressure,NickStress,NickWarmth,Money,S1_BlefUsed,S2_PaidPatrick,S2_ExtraWork_Required,S2_PatrickAnswerStyle,S3_BreakingPointAnswer,S3_Charlotte_KnowsAboutPatrick,S3_FinalVariant,node_id_visited,notes
+Archetype Template: Overwhelmed START,default,Overwhelmed,5,0,30,10,0,0,0,0,None,Unset,0,Unset,SETUP_Archetype,Стартовые значения по шкалам для архетипа Overwhelmed / Растерянный
+Archetype Template: Cynic START,default,Cynic,-5,-10,10,-20,0,0,0,0,None,Unset,0,Unset,SETUP_Archetype,Стартовые значения по шкалам для архетипа Cynic / Циничный
+Archetype Template: Controller START,default,Controller,0,10,5,-10,0,0,0,0,None,Unset,0,Unset,SETUP_Archetype,Стартовые значения по шкалам для архетипа Controller / Контролер
+Run 1 - Overwhelmed Warm,step_00,Overwhelmed,5,0,30,10,0,0,0,0,None,Unset,0,Unset,SETUP_Archetype,Пример прогона 1 - обычный парень в стиле warm-trust path
+Run 1 - Overwhelmed Warm,step_01_S1_Entry,Overwhelmed,,,,,,0,0,0,None,0,0,Unset,S1_Entry,Step 1
+Run 2 - Cynic Cold,step_00,Cynic,-5,-10,10,-20,0,0,0,0,None,Unset,0,Unset,SETUP_Archetype,Пример прогона 2 - циничный путь
+Run 3 - Controller PayPatrickPath,step_00,Controller,0,10,5,-10,0,0,0,0,None,Unset,0,Unset,SETUP_Archetype,Пример прогона 3 - контролер который платит Патрику
+Run 4 - Baseline Random,step_00,Overwhelmed,5,0,30,10,0,0,0,0,None,Unset,0,Unset,SETUP_Archetype,Можно копировать эти 4 столбца или сделать 10 рандомных прогонов
+KPI guide,,,,KPI FinalTrust (more better),KPI FinalStress (less better),KPI FinalMoney,KPI FinalWarmth,KPI PaidPatrick branch?,KPI FinalVariant (1 of 4),,,,,,Total soft/hard locks count,Notes if feels cheat / unbalanced
+How to use: 1) Choose archetype, 2) Apply each node from NODES csv, 3) Compare KPI, 4) Tweak NODES.csv if any path dominates

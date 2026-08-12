@@ -22,10 +22,11 @@ public class StorySaveData
 public static class StorySaveManager
 {
     private const string SaveFileName = "story_save.txt";
+    private static string _fallbackPersistentSavePath;
 
     public static string SavePath
     {
-        get { return Path.Combine(Application.persistentDataPath, SaveFileName); }
+        get { return GetPrimarySavePath(); }
     }
 
     public static StorySaveData LoadOrCreate()
@@ -97,17 +98,61 @@ public static class StorySaveManager
         {
             File.Delete(SavePath);
         }
+
+        if (!string.IsNullOrEmpty(_fallbackPersistentSavePath) && File.Exists(_fallbackPersistentSavePath))
+        {
+            File.Delete(_fallbackPersistentSavePath);
+        }
     }
 
     private static void Write(StorySaveData data)
     {
-        string directory = Path.GetDirectoryName(SavePath);
+        string path = SavePath;
+        string directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
         {
             Directory.CreateDirectory(directory);
         }
 
         string json = JsonUtility.ToJson(data, true);
-        File.WriteAllText(SavePath, json);
+        try
+        {
+            File.WriteAllText(path, json);
+        }
+        catch (Exception ex)
+        {
+            string fallbackPath = GetFallbackPersistentSavePath();
+            string fallbackDirectory = Path.GetDirectoryName(fallbackPath);
+            if (!string.IsNullOrEmpty(fallbackDirectory) && !Directory.Exists(fallbackDirectory))
+            {
+                Directory.CreateDirectory(fallbackDirectory);
+            }
+
+            File.WriteAllText(fallbackPath, json);
+            Debug.LogWarning($"Story save write fallback to persistent path: {ex.Message}");
+        }
+    }
+
+    private static string GetPrimarySavePath()
+    {
+        string dataPath = Application.dataPath;
+        string rootDirectory = Directory.GetParent(dataPath)?.FullName;
+
+        if (string.IsNullOrEmpty(rootDirectory))
+        {
+            return GetFallbackPersistentSavePath();
+        }
+
+        return Path.Combine(rootDirectory, SaveFileName);
+    }
+
+    private static string GetFallbackPersistentSavePath()
+    {
+        if (string.IsNullOrEmpty(_fallbackPersistentSavePath))
+        {
+            _fallbackPersistentSavePath = Path.Combine(Application.persistentDataPath, SaveFileName);
+        }
+
+        return _fallbackPersistentSavePath;
     }
 }

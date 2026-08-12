@@ -1,0 +1,7 @@
+{
+    "version": 1,
+    "resumeType": 2,
+    "levelBuildIndex": -1,
+    "comicTriggerAfterLevelIndex": 0,
+    "nextSceneBuildIndexAfterComic": 1
+}

@@ -1,0 +1,226 @@
+act: 1
+archetypes:
+  - id: Overwhelmed
+    start: { CharlotteTrust: 5, PatrickPressure: 0, NickStress: 30, NickWarmth: 10, Money: 0 }
+  - id: Cynic
+    start: { CharlotteTrust: -5, PatrickPressure: -10, NickStress: 10, NickWarmth: -20, Money: 0 }
+  - id: Controller
+    start: { CharlotteTrust: 0, PatrickPressure: 10, NickStress: 5, NickWarmth: -10, Money: 0 }
+nodes:
+  - id: SETUP_Archetype
+    type: auto
+    effects: []
+    next: S1_Entry
+  - id: S1_Entry
+    type: sequence
+    next: S1_QTA_1_3
+  - id: S1_QTA_1_3
+    type: choice
+    choices:
+      - id: S1_3_A
+        tags: [honest, warm]
+        effects:
+          CharlotteTrust: +10
+          PatrickPressure: 0
+          NickStress: +4
+          NickWarmth: +3
+          Money: 0
+      - id: S1_3_B
+        tags: [cold, avoid]
+        effects:
+          CharlotteTrust: -6
+          PatrickPressure: 0
+          NickStress: +6
+          NickWarmth: -2
+          Money: 0
+      - id: S1_3_C
+        tags: [lie, avoid, control]
+        effects:
+          CharlotteTrust: -2
+          PatrickPressure: 0
+          NickStress: +2
+          NickWarmth: -1
+          Money: 0
+        flags: [S1_BlefUsed]
+    next: S1_KUB_Entry
+  - id: S1_KUB_Entry
+    type: auto
+    effects:
+      NickStress: +3
+      Money: +100
+    next: S1_QTA_Contract
+  - id: S1_QTA_Contract
+    type: choice
+    choices:
+      - id: Accept
+        effects:
+          NickStress: +3
+        next: LEVEL_BLOCK_BEFORE_L5
+      - id: RejectAndReturn
+        effects:
+          CharlotteTrust: -5
+          NickStress: +15
+          NickWarmth: -5
+        next: LEVEL_BLOCK_BEFORE_L5
+  - id: LEVEL_BLOCK_BEFORE_L5
+    type: auto
+    effects:
+      NickStress: +5
+      NickWarmth: -1
+      Money: +500
+    next: S2_Entry
+  - id: S2_Entry
+    type: auto
+    effects:
+      CharlotteTrust: +3
+      NickStress: -3
+      NickWarmth: +2
+    next: S2_Patrick_Visit
+  - id: S2_Patrick_Visit
+    type: auto
+    effects:
+      PatrickPressure: +5
+      NickStress: +5
+      NickWarmth: -1
+    next: S2_QTA_Patrick
+  - id: S2_QTA_Patrick
+    type: choice
+    choices:
+      - id: S2_A_Submissive
+        tags: [avoid, submissive]
+        effects:
+          CharlotteTrust: -3
+          PatrickPressure: -5
+          NickStress: +4
+          NickWarmth: -2
+          Money: 0
+        set:
+          S2_PatrickAnswerStyle: Submissive
+      - id: S2_B_Aggressive
+        tags: [aggressive, cold, honest]
+        effects:
+          CharlotteTrust: -5
+          PatrickPressure: +25
+          NickStress: +10
+          NickWarmth: -5
+          Money: 0
+        set:
+          S2_PatrickAnswerStyle: Aggressive
+      - id: S2_C_Sarcasm
+        tags: [sarcastic, aggressive, avoid]
+        effects:
+          CharlotteTrust: -3
+          PatrickPressure: +15
+          NickStress: +8
+          NickWarmth: -3
+          Money: 0
+        set:
+          S2_PatrickAnswerStyle: Sarcastic
+      - id: S2_D_Pay450
+        require: { Money: ">= 450" }
+        tags: [money, avoid, control]
+        effects:
+          CharlotteTrust: -4
+          PatrickPressure: -30
+          NickStress: +10
+          NickWarmth: -2
+          Money: -450
+        set:
+          S2_PaidPatrick: true
+          S2_ExtraWork_Required: true
+          S2_PatrickAnswerStyle: Paid
+    next_switch:
+      when_flag: S2_PaidPatrick
+      true: Scene3_Entry_PaidPatrick
+      false: Scene3_Entry_Standard
+  - id: Scene3_Entry_Standard
+    type: auto
+    next: Scene3_BreakingPoint_Standard
+  - id: Scene3_Entry_PaidPatrick
+    type: auto
+    effects:
+      CharlotteTrust: -5
+      NickStress: +8
+      NickWarmth: -2
+    next: Scene3_BreakingPoint_PaidPatrick
+  - id: Scene3_BreakingPoint_Standard
+    type: choice
+    choices:
+      - id: S3_D_Truth
+        tags: [honest]
+        effects:
+          CharlotteTrust: -10
+          NickStress: -10
+          NickWarmth: +2
+        set:
+          S3_BreakingPointAnswer: Truth
+          S3_Charlotte_KnowsAboutPatrick: true
+      - id: S3_E_Lie
+        tags: [lie, control]
+        effects:
+          CharlotteTrust: +5
+          NickStress: +10
+          NickWarmth: -3
+        set:
+          S3_BreakingPointAnswer: Lie
+          S3_Charlotte_KnowsAboutPatrick: false
+      - id: S3_A_Calm
+        tags: [warm, avoid]
+        softlock_if: { NickStress: "> 70" }
+        effects:
+          CharlotteTrust: +8
+          NickStress: +5
+          NickWarmth: +2
+        set:
+          S3_BreakingPointAnswer: Avoid
+    next: Scene3_Final_Selector_Standard
+  - id: Scene3_BreakingPoint_PaidPatrick
+    type: choice
+    choices:
+      - id: TruthPaid
+        hardlock_if: { NickStress: "> 95" }
+        effects:
+          CharlotteTrust: -20
+          NickStress: -10
+          NickWarmth: +1
+        set:
+          S3_BreakingPointAnswer: Truth
+          S3_Charlotte_KnowsAboutPatrick: true
+      - id: LiePaid
+        effects:
+          CharlotteTrust: +3
+          NickStress: +12
+          NickWarmth: -3
+        set:
+          S3_BreakingPointAnswer: Lie
+          S3_Charlotte_KnowsAboutPatrick: false
+      - id: CalmPaid
+        hardlock_if: { NickStress: "> 60" }
+        softlock_if: { NickStress: "> 40" }
+        effects:
+          CharlotteTrust: +2
+          NickStress: +15
+          NickWarmth: -4
+        set:
+          S3_BreakingPointAnswer: Avoid
+    next: Scene3_Final_PaidPatrick
+  - id: Scene3_Final_Selector_Standard
+    type: final_choice
+    finals:
+      - WarmDivan
+      - ControlBoss
+      - PassionBed
+    next: ACT1_TV_PlotPoint
+  - id: Scene3_Final_PaidPatrick
+    type: final_fixed
+    final: ColdPaidEnding
+    effects:
+      CharlotteTrust: -5
+      NickStress: +5
+      NickWarmth: -3
+    next: ACT1_TV_PlotPoint
+  - id: ACT1_TV_PlotPoint
+    type: auto
+    next: DONE
+  - id: DONE
+    type: end

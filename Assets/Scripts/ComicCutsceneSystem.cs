@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using TMPro;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class ComicCutsceneSystem : MonoBehaviour
 {
@@ -17,6 +20,29 @@ public class ComicCutsceneSystem : MonoBehaviour
     [Range(0f, 1f)] public float textPlateAlpha = 0.85f;
     public TMP_FontAsset frameTextFontOverride;
     [Min(0f)] public float frameTextFontSizeOverride = 0f;
+
+    [Header("QTE / Status Layout (override)")]
+    [Min(0f)] public float statusHeaderHeightPx = 110f;
+    [Min(0f)] public float statusHeaderTopPaddingPx = 24f;
+    [Min(0f)] public float statusHeaderHorizontalPaddingPx = 40f;
+    [Min(0f)] public float qteBottomHeightPx = 300f;
+    [Min(0f)] public float qteBottomBottomPaddingPx = 28f;
+    [Min(0f)] public float qteBottomHorizontalPaddingPx = 40f;
+
+    [Header("Matrix Size (Critical for Layout)")]
+    [Range(0.5f, 1.8f)] public float matrixZoom = 1.1f;
+    [Tooltip("0.1…1.0. Какая ДОЛЯ доступной вертикали отводится под матрицу кадров. 0.95 = 95% (дефолт). 1.0 = под завязку. Позволяет отдельно управлять ВЫСОТОЙ матрицы НЕЗАВИСИМО от того насколько широкий Frame0 или правая колонка.")]
+    [Range(0.1f, 1.0f)] public float matrixHeightPercentOfAvailable = 0.95f;
+    [Tooltip("Вес ширины Frame0 (большой кадр слева) относительно RightColumn. Дефолт 3 = 60% (при Right=2). Поставь 2 или 1.5 чтобы Frame0 стал уже, а правая колонка шире.")]
+    [Min(0.1f)] public float matrixFrame0Weight = 3f;
+    [Tooltip("Вес ширины RightColumn (Frame1+Frame2) относительно Frame0. Дефолт 2 = 40% (при Frame0=3). Поставь 2.5 или 3 чтобы два маленьких справа стали шире.")]
+    [Min(0.1f)] public float matrixRightColumnWeight = 2f;
+    [Min(0f)] public float matrixHorizontalSpacingPx = 14f;
+    [Min(0f)] public float matrixVerticalSpacingPx = 10f;
+
+    [Header("Story State (for QTE effects)")]
+    public StoryRuntimeState runtimeState;
+    public Act1Archetype defaultArchetype = Act1Archetype.Overwhelmed;
 
     [Header("Sequences")]
     public List<ComicSequence> sequences = new List<ComicSequence>();
@@ -36,6 +62,39 @@ public class ComicCutsceneSystem : MonoBehaviour
     [System.NonSerialized] private ComicCutsceneUI _editorPreviewUi;
 #endif
 
+    // ✅ Unity вызывает OnValidate() АВТОМАТИЧЕСКИ каждый раз когда ты меняешь ЛЮБОЕ поле в System инспекторе!
+    // Пробрасываем matrix веса / проценты сразу в UI — так что меняешь в ComicCutsceneSystem → сразу видишь результат!
+    private void OnValidate()
+    {
+        if (this == null) return;
+        if (Application.isPlaying) return;
+
+        UnityEditor.EditorApplication.delayCall += () =>
+        {
+            if (this == null) return;
+            if (Application.isPlaying) return;
+            try
+            {
+                // Сценарий А: ты меняешь цифры в ComicCutsceneSystem когда на сцене УЖЕ открыт UI (в PreviewMode)
+                if (ui == null) ui = FindObjectOfType<ComicCutsceneUI>(true);
+                if (ui != null && ui.gameObject.activeInHierarchy)
+                {
+                    ApplyLayoutSizesToUi(ui);
+                    ApplyVisualSettingsToUi();
+                }
+                // Сценарий Б: Editor Preview Window (_editorPreviewUi)
+#if UNITY_EDITOR
+                if (_editorPreviewUi != null)
+                {
+                    ApplyLayoutSizesToUi(_editorPreviewUi);
+                    ApplyVisualSettingsToUi();
+                }
+#endif
+            }
+            catch (System.Exception) { /* В редакторе игнорируем невалидные состояния */ }
+        };
+    }
+
     private void Awake()
     {
         if (_instance != null && _instance != this)
@@ -45,10 +104,17 @@ public class ComicCutsceneSystem : MonoBehaviour
         }
         _instance = this;
 
+        if (Application.isPlaying)
+        {
+            DestroyDuplicateSystemsInPlayMode();
+        }
+
         if (dontDestroyOnLoad)
         {
             DontDestroyOnLoad(gameObject);
         }
+
+        EnsureRuntimeStateInitialized();
 
         if (ui == null) ui = FindObjectOfType<ComicCutsceneUI>(true);
         if (ui != null)
@@ -56,6 +122,29 @@ public class ComicCutsceneSystem : MonoBehaviour
             ApplyVisualSettingsToUi();
             ui.Initialize(fadeDuration);
             ui.RefreshBorders();
+        }
+    }
+
+    private void EnsureRuntimeStateInitialized()
+    {
+        if (runtimeState == null) runtimeState = StoryRuntimeState.Instance;
+        StoryRuntimeState.ReplaceInstance(runtimeState);
+        if (Application.isPlaying)
+        {
+            runtimeState.archetype = defaultArchetype;
+            runtimeState.ResetFromCurrentArchetype();
+        }
+    }
+
+    private void DestroyDuplicateSystemsInPlayMode()
+    {
+        var all = FindObjectsByType<ComicCutsceneSystem>(FindObjectsSortMode.None);
+        for (int i = 0; i < all.Length; i++)
+        {
+            var other = all[i];
+            if (other == null) continue;
+            if (other == this) continue;
+            Destroy(other.gameObject);
         }
     }
 
@@ -156,12 +245,14 @@ public class ComicCutsceneSystem : MonoBehaviour
     private List<ComicSequence> CollectSequencesForTrigger(int triggerAfterLevelIndex)
     {
         var result = new List<ComicSequence>();
+        StoryRuntimeState state = runtimeState != null ? runtimeState : StoryRuntimeState.Instance;
         for (int i = 0; i < sequences.Count; i++)
         {
             var seq = sequences[i];
             if (seq == null) continue;
             if (seq.triggerAfterLevelIndex != triggerAfterLevelIndex) continue;
             if (seq.pages == null || seq.pages.Count == 0) continue;
+            if (!seq.MatchesConditions(state)) continue;
             result.Add(seq);
         }
         return result;
@@ -180,6 +271,7 @@ public class ComicCutsceneSystem : MonoBehaviour
             ui.textPlateAlpha = textPlateAlpha;
             ui.frameTextFontOverride = frameTextFontOverride;
             ui.frameTextFontSizeOverride = frameTextFontSizeOverride;
+            ApplyLayoutSizesToUi(ui);
             ui.Initialize(fadeDuration);
         }
         ApplyVisualSettingsToUi();
@@ -188,11 +280,9 @@ public class ComicCutsceneSystem : MonoBehaviour
 
         if (dontDestroyOnLoad && loadSceneOnFinish && ui != null)
         {
-            if (ui.transform.parent != transform)
-            {
-                ui.transform.SetParent(transform, worldPositionStays: false);
-            }
-            DontDestroyOnLoad(ui.gameObject);
+            if (transform.parent != null) transform.SetParent(null, worldPositionStays: false);
+            if (ui.transform.parent != transform) ui.transform.SetParent(transform, worldPositionStays: false);
+            DontDestroyOnLoad(gameObject);
         }
 
         _playing = true;
@@ -215,9 +305,12 @@ public class ComicCutsceneSystem : MonoBehaviour
         if (previewSequence == null || previewSequence.pages == null || previewSequence.pages.Count == 0) return;
 
         var previewUi = EnsurePreviewUiExists();
+        // ✅ СНАЧАЛА применяем ВСЕ настройки layout (matrixFrame0Weight, matrixRightColumnWeight, percent!)
+        ApplyLayoutSizesToUi(previewUi);
         ApplyVisualSettingsToUi(previewUi);
         previewPageIndex = Mathf.Clamp(previewPageIndex, 0, previewSequence.pages.Count - 1);
         previewVisibleFrames = Mathf.Clamp(previewVisibleFrames, 1, 3);
+        previewUi.SetPreviewBinding(previewSequence, previewPageIndex);
         previewUi.ShowPreviewPage(previewSequence.pages[previewPageIndex], previewVisibleFrames);
     }
 
@@ -225,6 +318,7 @@ public class ComicCutsceneSystem : MonoBehaviour
     {
         var previewUi = GetEditorPreviewUi();
         if (previewUi == null) return;
+        previewUi.ClearPreviewBinding();
         previewUi.ClearPreview();
     }
 
@@ -260,6 +354,103 @@ public class ComicCutsceneSystem : MonoBehaviour
         EditorPreviewSelected();
     }
 
+    public void EditorSelectPreviewFrame(int frameIndex)
+    {
+#if UNITY_EDITOR
+        var previewUi = EnsurePreviewUiExists();
+        if (previewUi == null) return;
+
+        var proxy = previewUi.GetPreviewFrameProxy(frameIndex);
+        if (proxy == null) return;
+
+        Selection.activeGameObject = proxy.gameObject;
+        EditorGUIUtility.PingObject(proxy.gameObject);
+        SceneView.RepaintAll();
+#endif
+    }
+
+    public void EditorResetPreviewFrameTransform(int frameIndex)
+    {
+#if UNITY_EDITOR
+        if (previewSequence == null || previewSequence.pages == null) return;
+        if (previewPageIndex < 0 || previewPageIndex >= previewSequence.pages.Count) return;
+        if (frameIndex < 0 || frameIndex > 2) return;
+
+        Undo.RecordObject(previewSequence, "Reset Comic Frame Transform");
+        var page = previewSequence.pages[previewPageIndex];
+        var frame = frameIndex == 0 ? page.frame0 : frameIndex == 1 ? page.frame1 : page.frame2;
+        frame.imageOffset = Vector2.zero;
+        frame.imageScale = Vector2.one;
+
+        if (frameIndex == 0) page.frame0 = frame;
+        else if (frameIndex == 1) page.frame1 = frame;
+        else page.frame2 = frame;
+
+        previewSequence.pages[previewPageIndex] = page;
+        EditorUtility.SetDirty(previewSequence);
+        EditorPreviewSelected();
+        SceneView.RepaintAll();
+#endif
+    }
+
+    public void EditorFocusPreview()
+    {
+#if UNITY_EDITOR
+        var previewUi = EnsurePreviewUiExists();
+        if (previewUi == null) return;
+
+        if (previewSequence != null && previewSequence.pages != null && previewSequence.pages.Count > 0)
+        {
+            previewPageIndex = Mathf.Clamp(previewPageIndex, 0, previewSequence.pages.Count - 1);
+            previewVisibleFrames = Mathf.Clamp(previewVisibleFrames, 1, 3);
+            // ✅ Применяем layout настройки (weights, percent) перед preview!
+            ApplyLayoutSizesToUi(previewUi);
+            ApplyVisualSettingsToUi(previewUi);
+            previewUi.SetPreviewBinding(previewSequence, previewPageIndex);
+            previewUi.ShowPreviewPage(previewSequence.pages[previewPageIndex], previewVisibleFrames);
+        }
+
+        int focusFrameIndex = Mathf.Clamp(previewVisibleFrames - 1, 0, 2);
+        Transform focusTarget = previewUi.GetPreviewFocusTarget(focusFrameIndex);
+        if (focusTarget == null) focusTarget = previewUi.transform;
+
+        Selection.activeGameObject = focusTarget.gameObject;
+        EditorGUIUtility.PingObject(focusTarget.gameObject);
+
+        var sceneView = SceneView.lastActiveSceneView;
+        if (sceneView != null)
+        {
+            sceneView.orthographic = true;
+            sceneView.in2DMode = true;
+
+            var rt = focusTarget as RectTransform;
+            Vector3 worldCenter;
+            float halfSize;
+            if (rt != null)
+            {
+                Vector3[] corners = new Vector3[4];
+                rt.GetWorldCorners(corners);
+                worldCenter = (corners[0] + corners[2]) * 0.5f;
+                float w = Mathf.Abs(corners[2].x - corners[0].x);
+                float h = Mathf.Abs(corners[2].y - corners[0].y);
+                halfSize = Mathf.Max(w, h) * 0.7f;
+            }
+            else
+            {
+                worldCenter = focusTarget.position;
+                halfSize = 800f;
+            }
+
+            sceneView.pivot = worldCenter;
+            sceneView.rotation = Quaternion.Euler(0f, 0f, 0f);
+            sceneView.size = Mathf.Max(100f, halfSize);
+            sceneView.Repaint();
+        }
+
+        SceneView.RepaintAll();
+#endif
+    }
+
     private ComicCutsceneUI EnsurePreviewUiExists()
     {
         var previewUi = GetEditorPreviewUi();
@@ -275,6 +466,7 @@ public class ComicCutsceneSystem : MonoBehaviour
         _editorPreviewUi = go.AddComponent<ComicCutsceneUI>();
         _editorPreviewUi.buildIfMissingInPlayMode = true;
         ApplyVisualSettingsToUi(_editorPreviewUi);
+        ApplyLayoutSizesToUi(_editorPreviewUi);
         _editorPreviewUi.EnsureBuiltForPreview();
         return _editorPreviewUi;
 #else
@@ -294,11 +486,50 @@ public class ComicCutsceneSystem : MonoBehaviour
         targetUi.textPlateAlpha = textPlateAlpha;
         targetUi.frameTextFontOverride = frameTextFontOverride;
         targetUi.frameTextFontSizeOverride = frameTextFontSizeOverride;
+        ApplyLayoutSizesToUi(targetUi);
+    }
+
+    private void ApplyLayoutSizesToUi(ComicCutsceneUI targetUi)
+    {
+        if (targetUi == null) return;
+        targetUi.statusHeaderHeightPx = Mathf.Max(0f, statusHeaderHeightPx);
+        targetUi.statusHeaderTopPaddingPx = Mathf.Max(0f, statusHeaderTopPaddingPx);
+        targetUi.statusHeaderHorizontalPaddingPx = Mathf.Max(0f, statusHeaderHorizontalPaddingPx);
+        targetUi.qteBottomHeightPx = Mathf.Max(0f, qteBottomHeightPx);
+        targetUi.qteBottomBottomPaddingPx = Mathf.Max(0f, qteBottomBottomPaddingPx);
+        targetUi.qteBottomHorizontalPaddingPx = Mathf.Max(0f, qteBottomHorizontalPaddingPx);
+        targetUi.matrixZoom = Mathf.Clamp(matrixZoom, 0.5f, 1.8f);
+        targetUi.matrixHeightPercentOfAvailable = Mathf.Clamp01(matrixHeightPercentOfAvailable);
+        targetUi.matrixFrame0Weight = Mathf.Max(0.1f, matrixFrame0Weight);
+        targetUi.matrixRightColumnWeight = Mathf.Max(0.1f, matrixRightColumnWeight);
+        targetUi.matrixHorizontalSpacingPx = Mathf.Max(0f, matrixHorizontalSpacingPx);
+        targetUi.matrixVerticalSpacingPx = Mathf.Max(0f, matrixVerticalSpacingPx);
     }
 
     private ComicCutsceneUI GetEditorPreviewUi()
     {
 #if UNITY_EDITOR
+        if (_editorPreviewUi != null) return _editorPreviewUi;
+
+        ComicCutsceneUI found = null;
+        var allPreviewUis = Resources.FindObjectsOfTypeAll<ComicCutsceneUI>();
+        for (int i = 0; i < allPreviewUis.Length; i++)
+        {
+            var candidate = allPreviewUis[i];
+            if (candidate == null) continue;
+            if (candidate.gameObject == null) continue;
+            if (candidate.gameObject.name != "ComicCutscenePreviewUI") continue;
+
+            if (found == null)
+            {
+                found = candidate;
+                continue;
+            }
+
+            DestroyImmediate(candidate.gameObject);
+        }
+
+        _editorPreviewUi = found;
         return _editorPreviewUi;
 #else
         return null;
